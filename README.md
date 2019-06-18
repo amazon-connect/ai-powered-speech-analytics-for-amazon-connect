@@ -4,21 +4,21 @@ The AI Powered Speech Analytics for Amazon Connect solution provides the combina
 ## OS/Python Environment Setup
 ```bash
 sudo apt-get update
-sudo apt-get install zip sed wget -y
-sudo pip install --upgrade pip
-sudo pip install --upgrade setuptools
-sudo pip install --upgrade virtualenv```
+sudo apt-get install zip wget sed -y
+sudo wget -qO- https://deb.nodesource.com/setup_8.x | bash
+sudo apt-get -y install nodejs
 ```
 
 ## Building Lambda Package
 ```bash
 cd deployment
-./build-s3-dist.sh source-bucket-base-name
+./build-s3-dist.sh source-bucket-base-name version
 ```
 source-bucket-base-name should be the base name for the S3 bucket location where the template will source the Lambda code from.
 The template will append '-[region_name]' to this value.
-For example: ./build-s3-dist.sh solutions
-The template will then expect the source code to be located in the solutions-[region_name] bucket
+version should be a version prefix for the S3 bucket to indicate different build versions.
+For example: ./build-s3-dist.sh solutions v1.0.0
+The template will then expect the source code to be located in the solutions-[region_name]/AI-powered-speech-analytics-for-amazon-connect/v1.0.0/ bucket
 
 ## CF template and Lambda function
 Located in deployment/dist
@@ -26,7 +26,7 @@ Located in deployment/dist
 
 ***
 
-Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
 
 Licensed under the Amazon Software License (the "License"). You may not use this file except in compliance with the License. A copy of the License is located at
 
