@@ -1,0 +1,28 @@
+{
+    "name": "ws_realtime_transcribe_OnMessage",
+    "description": "Gets called when a message comes from the websocket",
+    "main": "index.js",
+    "author": {
+        "name": "AWS"
+    },
+    "version": "0.0.1",
+    "private": "true",
+    "dependencies": {
+        "aws-sdk": "*",
+        "validator": "*"
+    },
+    "devDependencies": {
+        "mocha": "*",
+        "aws-sdk-mock": "*",
+        "npm-run-all": "*"
+    },
+    "scripts": {
+        "pretest": "npm install",
+        "test": "mocha *.spec.js",
+        "build-init": "rm -rf dist && rm -f archive.zip && mkdir dist",
+        "build:copy": "cp index.js dist/",
+        "build:install": "cp package.json dist/ && cd dist && npm install --production",
+        "build": "npm-run-all -s build-init build:copy build:install",
+        "zip": "cd dist && zip -rq ws_realtime_transcribe_OnMessage.zip ."
+    }
+}

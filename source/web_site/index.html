@@ -1,0 +1,88 @@
+
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Amazon Connect Demo Site</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta content="utf-8" http-equiv="encoding">
+    <link href="css/style.css" rel="stylesheet" type="text/css" />
+    <script src="https://code.jquery.com/jquery-3.1.0.min.js"></script>
+    <script type="text/javascript" src="https://s3.amazonaws.com/amazon-connect-streams/amazon-connect-v1.0.js"></script>
+    <script src="js/menu.js"></script>
+    <link href="css/menuStyle.css" rel="stylesheet" type="text/css" />
+</head>
+
+
+<body>
+<style>
+#main {
+         width:867px;
+         margin-left:22px;
+         float:left;
+         overflow: hidden;
+      }
+
+</style>
+
+<!--navbar div with the id-->
+    <div id="navbar-frame"></div>
+   <script>
+      $(document).ready(() => {
+          $('#post-btn').click(() => {
+            const alias = $.trim($('#alias').val());
+            var windowLocation = 'agentAssist.html';
+           
+            if (alias) {
+               localStorage.setItem('alias', alias);
+            window.location = windowLocation;
+            return false;
+             } 
+
+            localStorage.removeItem('alias');
+            window.location = '/index.html';
+            return false;
+          });
+        });
+   </script>
+   <section id="main">
+      <header>
+         <h1>AI Powered Speech Analytics for Amazon Connect</h1>
+         <p>To proceed with the AI Powered Speech Analytics for Amazon Connect, you must first set your Amazon Connect Instance Alias<p>
+         <p>Use this form to enter your Amazon Connect Instance Alias</p>
+         <p>Tip: Log in to your <a target="_blank" href="https://console.aws.amazon.com/connect/home">Amazon Connect Console</a> to find your instance alias</p>
+
+      </header>
+      <form>
+         <fieldset>
+            <legend>Amazon Connect Instance Details</legend>
+               <div>
+                  <table>
+                     <tbody>
+                        <tr>
+                          <td><label for="alias">Instance Alias</label></td>
+                          <td><input id="alias" type="text"placeholder="Put Alias Here" ></input></td>
+                          <td><small>  (Leave blank to clear intance alias from cache)</small></td>
+                        </tr>
+                     </tbody>
+                  </table>
+               </div>
+         </fieldset>
+            <input type="submit" class="submit" id="post-btn" value="Submit" />
+        </form>
+
+    </section>
+
+<script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+
+  ga('create', 'UA-96261456-1', 'auto');
+  ga('send', 'pageview');
+
+</script>
+</body>
+
+</html>

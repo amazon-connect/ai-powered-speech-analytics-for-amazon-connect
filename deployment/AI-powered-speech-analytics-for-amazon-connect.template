@@ -1,0 +1,1279 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+Description: >
+    "AI Powered Speach Analytics for Amazon Connect:
+    - Create the basic foundation for streaming customer audio from Amazon Connect by deploying:
+    - S3 Bucket for audio files, and the sample contact flow
+    - Dynamo DB tables: transcriptSegments and contactDetails
+    - A Lambda triggered on inbound contacts to store the initial contact details
+    - A Lambda to trigger and pass the stream details to the Java Lambda
+    - A Java Lambda to consume KVS and stream it to Amazon Transcribe, store the segments in DDB and upload the raw audio to S3
+    - A Node.js Lambda triggered by S3 once WAV file is uploaded to store the concatenated transcript segments in the contact details table along with the S3 location of the audio file
+    - A Node.js Lambda triggered by CloudFormation to create a sample Amazon Connect contact flow, pre-populated with the Lambda ARNs and placed in the S3 bucket for you to import in to your Amazon Connect instance.
+    - (SO0054-preview)"
+
+Mappings:
+    FunctionMap:
+        Configuration:
+            S3Bucket: "%%BUCKET_NAME%%"
+            S3Key: "AI-powered-speech-analytics-for-amazon-connect/%%VERSION%%/"
+            SolutionID: "SO0054"
+    Send:
+        AnonymousUsage:
+            Data: "Yes"
+
+Parameters:
+    S3BucketName:
+        Type: String
+        Default: "new-audio-bucket-name"
+        Description: >
+            Enter the (globally unique) name you would like to use for the Amazon S3 bucket where we will store the audio files, and the sample contact flow.
+            This template will fail to deploy if the bucket name you chose is currently in use.
+        AllowedPattern: '(?=^.{3,63}$)(?!^(\d+\.)+\d+$)(^(([a-z0-9]|[a-z0-9][a-z0-9\-]*[a-z0-9])\.)*([a-z0-9]|[a-z0-9][a-z0-9\-]*[a-z0-9])$)'
+    audioFilePrefix:
+        Type: String
+        Default:  recordings/
+        Description:  The Amazon S3 prefix where the audio files will be saved (must end in "/")
+    rawAudioUploadPrefix:
+        Type: String
+        Default:  audio-file-input/
+        Description:  >
+            The Amazon S3 prefix where raw/wav (audio/L16; mono; 8 kHz) audio recordings may be uploaded in the event you would like
+            process an audio file vs making a phone call and streaming from KVS. Mainly for testing, or for realtime transcription of audio files. This will only work with single channel files (mono).
+    transcriptSegmentsTable:
+        Type: String
+        Default:  contactTranscriptSegments
+        Description:  The name of the DynamoDB Table where segments (utterances) for the caller transcript will be saved (Ensure you do not have a table with this name already).
+    contactDetailsTable:
+        Type: String
+        Default:  contactDetails
+        Description:  The name of the DynamoDB Table where contact details will be written (Ensure you do not have a table with this name already).
+    webSocketConnectionsTableParam:
+        Type: String
+        Default: websocket_connections
+        Description: The name of the DynamoDB Table where websocket connection information will be stored per user(Ensure you do not have a table with this name already).
+    S3BucketNameForWebSite:
+        Type: String
+        Default: "new-website-bucket-name"
+        Description: >
+            Enter the (globally unique) name you would like to use for the Amazon S3 bucket where we will store the website assets and the sample contact flow.
+            This template will fail to deploy if the bucket name you chose is currently in use.
+        AllowedPattern: '(?=^.{3,63}$)(?!^(\d+\.)+\d+$)(^(([a-z0-9]|[a-z0-9][a-z0-9\-]*[a-z0-9])\.)*([a-z0-9]|[a-z0-9][a-z0-9\-]*[a-z0-9])$)'
+    cloudFrontPriceClass:
+        Type: String
+        Default: PriceClass_100
+        AllowedValues:
+            - PriceClass_100
+            - PriceClass_200
+            - PriceClass_All
+        ConstraintDescription: "Allowed Price Classes PriceClass_100 PriceClass_200 and PriceClass_All"
+        Description: Specify the CloudFront price class. See https://aws.amazon.com/cloudfront/pricing/ for a description of each price class.
+    instanceIdParam:
+        Type: String
+        AllowedPattern: '\w{8}-\w{4}-\w{4}-\w{4}-\w{12}'
+        ConstraintDescription: "Invalid Amazon Connect instance Id"
+        Description: Amazon Connect Instance ID (Ensure you it is entered accurately in the format xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx ).
+    instanceNameParam:
+        Type: String
+        ConstraintDescription: "Invalid Amazon Connect instance alias"
+        Description: Amazon Connect Instance Alias (Ensure you it is entered accurately as configured under Amazon Connect Service ).
+
+Metadata:
+  'AWS::CloudFormation::Interface':
+    ParameterGroups:
+      - Label:
+          default: Amazon Connect Configuration
+        Parameters:
+          - instanceIdParam
+          - instanceNameParam
+      - Label:
+          default: Amazon S3 Configuration
+        Parameters:
+          - S3BucketNameForWebSite
+          - S3BucketName
+          - audioFilePrefix
+          - rawAudioUploadPrefix
+      - Label:
+          default: Amazon CloudFront Configuration
+        Parameters:
+          - cloudFrontPriceClass
+      - Label:
+          default: Amazon DynamoDB Configuration
+        Parameters:
+          - transcriptSegmentsTable
+          - contactDetailsTable
+          - webSocketConnectionsTableParam
+    ParameterLabels:
+      instanceIdParam:
+        default: Instance ID
+      instanceNameParam:
+        default: Instance Alias
+      S3BucketNameForWebSite:
+        default: Website Bucket Name
+      S3BucketName:
+        default: Call Audio Bucket Name
+      cloudFrontPriceClass:
+        default: Price Class
+      audioFilePrefix:
+        default: Audio File Prefix
+      rawAudioUploadPrefix:
+        default: Test Mono Audio Prefix
+      transcriptSegmentsTable:
+        default: Transcript Table Name
+      contactDetailsTable:
+        default: Contacts Table Name
+      webSocketConnectionsTableParam:
+        default: Websocket Table Name
+
+
+Outputs:
+    transcriptSegmentsDDBTable:
+        Description:  The ARN of the DynamoDB table created to store segments of call transcripts (customer audio)
+        Value: !GetAtt transcriptSegmentsDDBTable.Arn
+    contactsDDBTable:
+        Description:  The ARN of the DynamoDB table created to store contact details used in this solution
+        Value: !GetAtt contactDetailsDDBTable.Arn
+    GwIamRole:
+        Description: The IAM Role created for the API GW Lambda Functions in this template
+        Value: !Ref AIPoweredSpeechAnalyticsApiGwLambdaRole
+    initContactDetails:
+        Description:  >
+            AWS Lambda Function that will be triggered when the call starts so that we have the initial contact details which can later add to when we have the transcript, and audio file location.
+        Value: !Ref initContactDetails
+    transcriptionTrigger:
+        Description:  >
+            AWS Lambda Function to start (asynchronous) streaming transcription; it is expected to be called by the
+            Amazon Connect Contact Flow.
+        Value: !Ref kvsConsumerTrigger
+    transcriptionTriggerARN:
+        Description:  ARN for the TranscriptionTriggerFunction
+        Value: !GetAtt kvsConsumerTrigger.Arn
+    CallTranscription:
+        Description:  AWS Lambda Function to get audio from Kinesis Video Streams and use Amazon Transcribe to get text for the caller audio.  Should be invoked by TranscriptionTrigger and write results to the transcriptSegments table.
+        Value: !Ref kvsTranscriber
+    wsrealtimetranscribeOnConnectOP:
+        Description: AWS Lambda Function gets called when a new connection is coming from a browser.
+        Value: !Ref wsrealtimetranscribeOnConnect
+    wsrealtimetranscribeDefaultOP:
+        Description: AWS Lambda Function that will be triggered when the new call is received by the agent.
+        Value: !Ref wsrealtimetranscribeDefault
+    wsrealtimetranscribeOnDDBInsertOP:
+        Description: AWS Lambda function gets called when a new row is inserted into the segment table
+        Value: !Ref wsrealtimetranscribeOnDDBInsert
+    wsrealtimetranscribeOnDisConnectOP:
+        Description: AWS Lambda function gets called when a websocket connection is dropped from browser
+        Value: !Ref wsrealtimetranscribeOnDisConnect
+    wsrealtimetranscribeOnMessageOP:
+        Description: AWS Lambda function gets called when a message comes from the websocket connection
+        Value: !Ref wsrealtimetranscribeOnMessage
+    webSocketConnectionsTableOP:
+        Description: The Arn of the DynamoDB table created to websocket connection information used in this solution
+        Value: !GetAtt webSocketConnectionsDDBTable.Arn
+    WebSocketURI:
+        Description: The WSS Protocol URI to connect to
+        Value: !Join
+          - ''
+          - - 'wss://'
+            - !Ref AIPoweredSpeechAnalyticsWS
+            - .execute-api.
+            - !Ref 'AWS::Region'
+            - .amazonaws.com/
+            - !Ref Stage
+    createS3BucketOP:
+        Description: Bucket contains all the call recordings and sample contactflow
+        Value: !GetAtt [createS3Bucket, WebsiteURL]
+    createS3BucketSSLOP:
+        Description:  Bucket contains all the call recordings and sample contactflow
+        Value: !Join ['', ['https://', !GetAtt [createS3Bucket, DomainName]]]
+    cloudfrontEndpoint:
+        Value: !Join
+          - ''
+          - - 'https://'
+            - !GetAtt [AIPSAnalyticsCloudFrontDistribution, DomainName]
+            - '/agentAssist.html'
+        Description: Endpoint for Cloudfront distribution
+    uuid:
+        Description:  UUID for this deployment
+        Value: !GetAtt SolutionUuid.UUID
+
+Resources:
+    allowConnectToKvsConsumerTriggerLambda:
+        Type: 'AWS::Lambda::Permission'
+        Properties:
+            FunctionName: !Ref kvsConsumerTrigger
+            Action: 'lambda:InvokeFunction'
+            Principal: connect.amazonaws.com
+            SourceAccount: !Ref 'AWS::AccountId'
+
+    allowConnectToInitContactDetailsLambda:
+        Type: 'AWS::Lambda::Permission'
+        Properties:
+            FunctionName: !Ref initContactDetails
+            Action: 'lambda:InvokeFunction'
+            Principal: connect.amazonaws.com
+            SourceAccount: !Ref 'AWS::AccountId'
+
+    allowS3toProcessContactSummaryLambda:
+        Type: 'AWS::Lambda::Permission'
+        Properties:
+            FunctionName: !Ref processContactSummary
+            Action: 'lambda:InvokeFunction'
+            Principal: s3.amazonaws.com
+            SourceAccount: !Ref 'AWS::AccountId'
+
+    createS3Bucket:
+        Type: 'AWS::S3::Bucket'
+        Properties:
+            BucketName: !Ref S3BucketName
+            NotificationConfiguration:
+             LambdaConfigurations:
+              -
+                Function: !GetAtt processContactSummary.Arn
+                Event: "s3:ObjectCreated:*"
+                Filter:
+                    S3Key:
+                     Rules:
+                      -
+                        Name: suffix
+                        Value: wav
+            AccessControl: LogDeliveryWrite
+            LoggingConfiguration:
+                DestinationBucketName: !Ref S3BucketName
+                LogFilePrefix: 'logs/'
+            VersioningConfiguration:
+                Status: Enabled
+            PublicAccessBlockConfiguration:
+                BlockPublicAcls: True
+                BlockPublicPolicy: True
+                IgnorePublicAcls: True
+                RestrictPublicBuckets: True
+            BucketEncryption:
+                    ServerSideEncryptionConfiguration:
+                        - ServerSideEncryptionByDefault:
+                            SSEAlgorithm: AES256
+            CorsConfiguration:
+                CorsRules:
+                    -   AllowedOrigins:
+                            - '*'
+                        AllowedHeaders:
+                            - '*'
+                        AllowedMethods:
+                            - PUT
+                            - HEAD
+                        MaxAge: '3000'
+
+    createWebSiteS3Bucket:
+        Type: 'AWS::S3::Bucket'
+        DependsOn:
+            - createS3Bucket
+        Properties:
+            BucketName: !Ref S3BucketNameForWebSite
+            LoggingConfiguration:
+                DestinationBucketName: !Ref S3BucketName
+                LogFilePrefix: 'logs/'
+            PublicAccessBlockConfiguration:
+                BlockPublicAcls: True
+                BlockPublicPolicy: True
+                IgnorePublicAcls: True
+                RestrictPublicBuckets: True
+            WebsiteConfiguration:
+                IndexDocument: agentAssist.html
+                ErrorDocument: error.html
+
+    s3BucketPolicy:
+        Type: AWS::S3::BucketPolicy
+        DependsOn:
+            - createWebSiteS3Bucket
+            - AIPSAnalyticsCloudFrontDistributionAccessIdentity
+        Properties:
+            Bucket: !Ref createWebSiteS3Bucket
+            PolicyDocument:
+                Statement:
+                    -
+                        Action:
+                            - "s3:GetObject"
+                        Effect: "Allow"
+                        Principal:
+                            CanonicalUser:
+                                Fn::GetAtt: [ AIPSAnalyticsCloudFrontDistributionAccessIdentity , S3CanonicalUserId ]
+                        Resource:
+                            !Sub ${createWebSiteS3Bucket.Arn}/CCP/*
+
+    transcriptSegmentsDDBTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName:  !Ref transcriptSegmentsTable
+        AttributeDefinitions:
+          -
+            AttributeName: "ContactId"
+            AttributeType: "S"
+          -
+            AttributeName: "StartTime"
+            AttributeType: "N"
+        KeySchema:
+          -
+            AttributeName: "ContactId"
+            KeyType: "HASH"
+          -
+            AttributeName: "StartTime"
+            KeyType: "RANGE"
+        # assuming 5 concurrent calls
+        ProvisionedThroughput:
+          ReadCapacityUnits:
+              5
+          WriteCapacityUnits:
+              5
+        PointInTimeRecoverySpecification:
+            PointInTimeRecoveryEnabled: True
+        SSESpecification:
+            SSEEnabled: True
+        TimeToLiveSpecification:
+            AttributeName:  "ExpiresAfter"
+            Enabled:  True
+        StreamSpecification:
+            StreamViewType: NEW_AND_OLD_IMAGES
+
+    contactDetailsDDBTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName:  !Ref contactDetailsTable
+        AttributeDefinitions:
+          -
+            AttributeName: "contactId"
+            AttributeType: "S"
+        KeySchema:
+          -
+            AttributeName: "contactId"
+            KeyType: "HASH"
+        # assuming 5 concurrent calls
+        ProvisionedThroughput:
+          ReadCapacityUnits:
+              5
+          WriteCapacityUnits:
+              5
+        PointInTimeRecoverySpecification:
+            PointInTimeRecoveryEnabled: True
+        SSESpecification:
+            SSEEnabled: True
+
+    AIPoweredSpeechAnalyticsKvsTranscribeRole:
+        Type: "AWS::IAM::Role"
+        Metadata:
+          cfn_nag:
+            rules_to_suppress:
+            - id: F3
+              reason: transcribe:* do not support resource-level permissions and kinesisvideo streams are dynamically created and therefore cannot be specificed directly
+            - id: W11
+              reason: transcribe:* do not support resource-level permissions and kinesisvideo streams are dynamically created and therefore cannot be specificed directly
+        Properties:
+          AssumeRolePolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              -
+                Effect: "Allow"
+                Principal:
+                  Service:
+                    - "lambda.amazonaws.com"
+                Action:
+                  - "sts:AssumeRole"
+          Path: "/"
+          Policies:
+            -
+              PolicyName: kvs-streaming-transcribe-policy
+              PolicyDocument:
+                Version: "2012-10-17"
+                Statement:
+                  -
+                    Effect: "Allow"
+                    Action:
+                      - 'logs:CreateLogGroup'
+                      - 'logs:CreateLogStream'
+                      - 'logs:PutLogEvents'
+                    Resource:
+                      - !Sub "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/*"
+                  -
+                    Effect: "Allow"
+                    Action:
+                      - "dynamodb:Query"
+                      - "dynamodb:Scan"
+                      - "dynamodb:PutItem"
+                      - "dynamodb:UpdateItem"
+                      - "dynamodb:GetRecords"
+                      - "dynamodb:GetShardIterator"
+                      - "dynamodb:DescribeStream"
+                      - "dynamodb:ListStreams"
+                    Resource:
+                      - !Sub ${transcriptSegmentsDDBTable.Arn}
+                  -
+                    Effect: "Allow"
+                    Action:
+                      - "s3:PutObject"
+                      - "s3:GetObject"
+                      - "s3:PutObjectAcl"
+                    Resource:
+                      - !Sub ${createS3Bucket.Arn}/*
+                  -
+                    Effect: "Allow"
+                    Action:
+                      - "transcribe:DeleteTranscriptionJob"
+                      - "transcribe:GetTranscriptionJob"
+                      - "transcribe:GetVocabulary"
+                      - "transcribe:ListTranscriptionJobs"
+                      - "transcribe:ListVocabularies"
+                      - "transcribe:StartStreamTranscription"
+                      - "transcribe:StartTranscriptionJob"
+                    Resource: "*"
+                  -
+                    Effect: "Allow"
+                    Action:
+                      - "kinesisvideo:Describe*"
+                      - "kinesisvideo:Get*"
+                      - "kinesisvideo:List*"
+                    Resource: "*"
+
+    AIPoweredSpeechAnalyticsKvsTriggerRole:
+        Type: "AWS::IAM::Role"
+        Properties:
+          AssumeRolePolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              -
+                Effect: "Allow"
+                Principal:
+                  Service:
+                    - "lambda.amazonaws.com"
+                Action:
+                  - "sts:AssumeRole"
+          Path: "/"
+          Policies:
+            -
+              PolicyName: kvs-streaming-trigger-policy
+              PolicyDocument:
+                Version: "2012-10-17"
+                Statement:
+                  -
+                    Effect: "Allow"
+                    Action:
+                      - 'logs:CreateLogGroup'
+                      - 'logs:CreateLogStream'
+                      - 'logs:PutLogEvents'
+                    Resource:
+                      - !Sub "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/*"
+                  -
+                    Effect: "Allow"
+                    Action:
+                      - "lambda:InvokeFunction"
+                      - "lambda:InvokeAsync"
+                    Resource:
+                      - !GetAtt kvsTranscriber.Arn
+
+    AIPoweredSpeechAnalyticsProcessContactRole:
+        Type: "AWS::IAM::Role"
+        Properties:
+          AssumeRolePolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              -
+                Effect: "Allow"
+                Principal:
+                  Service:
+                    - "lambda.amazonaws.com"
+                Action:
+                  - "sts:AssumeRole"
+          Path: "/"
+          Policies:
+            -
+              PolicyName: process-contact-policy
+              PolicyDocument:
+                Version: "2012-10-17"
+                Statement:
+                  -
+                    Effect: "Allow"
+                    Action:
+                      - 'logs:CreateLogGroup'
+                      - 'logs:CreateLogStream'
+                      - 'logs:PutLogEvents'
+                    Resource:
+                      - !Sub "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/*"
+                  -
+                    Effect: "Allow"
+                    Action:
+                      - "dynamodb:Query"
+                    Resource:
+                      - !Sub ${transcriptSegmentsDDBTable.Arn}
+                  -
+                    Effect: "Allow"
+                    Action:
+                      - "dynamodb:Update"
+                    Resource:
+                      - !Sub ${contactDetailsDDBTable.Arn}
+
+    AIPoweredSpeechAnalyticsContactFlowCreatorRole:
+        Type: "AWS::IAM::Role"
+        Properties:
+          AssumeRolePolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              -
+                Effect: "Allow"
+                Principal:
+                  Service:
+                    - "lambda.amazonaws.com"
+                Action:
+                  - "sts:AssumeRole"
+          Path: "/"
+          Policies:
+            -
+              PolicyName: contact-flow-creator-policy
+              PolicyDocument:
+                Version: "2012-10-17"
+                Statement:
+                  -
+                    Effect: "Allow"
+                    Action:
+                      - 'logs:CreateLogGroup'
+                      - 'logs:CreateLogStream'
+                      - 'logs:PutLogEvents'
+                    Resource:
+                      - !Sub "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/*"
+                  -
+                    Effect: "Allow"
+                    Action:
+                      - "s3:PutObject"
+                    Resource:
+                      - !Sub ${createS3Bucket.Arn}/*
+
+    AIPoweredSpeechAnalyticsApiGwLambdaRole:
+        Type: "AWS::IAM::Role"
+        Properties:
+          AssumeRolePolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              -
+                Effect: "Allow"
+                Principal:
+                  Service:
+                    - "lambda.amazonaws.com"
+                Action:
+                  - "sts:AssumeRole"
+          Path: "/"
+          Policies:
+            -
+              PolicyName: apigw-lambda-policy
+              PolicyDocument:
+                Version: "2012-10-17"
+                Statement:
+                  -
+                    Effect: "Allow"
+                    Action:
+                      - 'logs:CreateLogGroup'
+                      - 'logs:CreateLogStream'
+                      - 'logs:PutLogEvents'
+                    Resource:
+                      - !Sub "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/*"
+                  -
+                    Effect: "Allow"
+                    Action:
+                      - "dynamodb:DeleteItem"
+                      - "dynamodb:GetRecords"
+                      - "dynamodb:GetShardIterator"
+                      - "dynamodb:PutItem"
+                      - "dynamodb:Scan"
+                    Resource:
+                      - !Sub ${webSocketConnectionsDDBTable.Arn}
+                  -
+                    Effect: "Allow"
+                    Action:
+                      - "dynamodb:DescribeStream"
+                      - "dynamodb:GetRecords"
+                      - "dynamodb:GetShardIterator"
+                      - "dynamodb:ListStreams"
+                    Resource:
+                      - !Sub ${transcriptSegmentsDDBTable.Arn}/*
+                  -
+                    Effect: "Allow"
+                    Action:
+                      - "execute-api:Invoke"
+                      - "execute-api:InvalidateCache"
+                      - "execute-api:ManageConnections"
+                    Resource:
+                      !Sub "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${AIPoweredSpeechAnalyticsWS}*"
+
+    AIPoweredSpeechAnalyticsConnectUserStsRole:
+        Type: "AWS::IAM::Role"
+        Properties:
+          AssumeRolePolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              -
+                Effect: "Allow"
+                Principal:
+                  AWS:
+                    !Join
+                        - ''
+                        - - 'arn:'
+                          - !Ref 'AWS::Partition'
+                          - ':iam::'
+                          - !Ref 'AWS::AccountId'
+                          - ':'
+                          - 'root'
+                Action:
+                  - "sts:AssumeRole"
+          Path: "/"
+
+    AIPoweredSpeechAnalyticsConnectUserStsPolicy:
+      Type: 'AWS::IAM::Policy'
+      Metadata:
+        cfn_nag:
+          rules_to_suppress:
+          - id: W12
+            reason: comprehend, translate, and connect do not support resource-level permissions
+      Properties:
+        PolicyName: !Sub ${AWS::StackName}-UserStsPolicy
+        Roles:
+          - !Ref AIPoweredSpeechAnalyticsConnectUserStsRole
+        PolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            -
+              Effect: "Allow"
+              Action:
+                - "comprehend:ListEntityRecognizers"
+                - "comprehend:DetectSentiment"
+                - "comprehend:DetectEntities"
+                - "comprehend:ListDocumentClassifiers"
+                - "comprehend:DetectSyntax"
+                - "comprehend:DetectKeyPhrases"
+              Resource: "*"
+            -
+              Effect: "Allow"
+              Action:
+                - "translate:TranslateText"
+              Resource: "*"
+            -
+              Effect: "Allow"
+              Action:
+                - "s3:PutObject"
+              Resource:
+                - !Sub ${createS3Bucket.Arn}/*
+            -
+              Effect: "Allow"
+              Action:
+                - "connect:UpdateContactAttributes"
+              Resource: "*"
+            -
+              Effect: "Allow"
+              Action:
+                - "execute-api:Invoke"
+                - "execute-api:InvalidateCache"
+                - "execute-api:ManageConnections"
+              Resource:
+                !Join
+                    - ''
+                    - - 'arn:'
+                      - !Ref 'AWS::Partition'
+                      - ':execute-api:'
+                      - !Ref 'AWS::Region'
+                      - ':'
+                      - !Ref 'AWS::AccountId'
+                      - ':'
+                      - !Ref AIPoweredSpeechAnalyticsWS
+                      - '*'
+
+    AIPoweredSpeechAnalyticsSTSTokenLambdaIAMRole:
+        Type: "AWS::IAM::Role"
+        Properties:
+          AssumeRolePolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              -
+                Effect: "Allow"
+                Principal:
+                  Service:
+                    - "lambda.amazonaws.com"
+                Action:
+                  - "sts:AssumeRole"
+          Path: "/"
+          Policies:
+            -
+              PolicyName: connect-aipsas-ststoken
+              PolicyDocument:
+                Version: "2012-10-17"
+                Statement:
+                -
+                  Effect: "Allow"
+                  Action:
+                    - 'logs:CreateLogGroup'
+                    - 'logs:CreateLogStream'
+                    - 'logs:PutLogEvents'
+                  Resource:
+                    - !Sub "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/*"
+                -
+                  Effect: "Allow"
+                  Action:
+                    - "dynamodb:UpdateItem"
+                  Resource:
+                    - !Sub ${contactDetailsDDBTable.Arn}
+                - Effect: "Allow"
+                  Action:
+                    - 'sts:AssumeRole'
+                  Resource:
+                      - !GetAtt AIPoweredSpeechAnalyticsConnectUserStsRole.Arn
+
+    kvsTranscriber:
+      Type: "AWS::Lambda::Function"
+      Properties:
+        Description:  >
+            Process audio from Kinesis Video Stream and use Amazon Transcribe to get text
+            for the caller audio. Will be invoked by the kvsConsumerTrigger Lambda, writes results to the
+            transcriptSegmentsTable, and uploads the audio file to S3.
+
+        Handler: "com.amazonaws.kvstranscribestreaming.KVSTranscribeStreamingLambda::handleRequest"
+        Role: !GetAtt AIPoweredSpeechAnalyticsKvsTranscribeRole.Arn
+        Runtime: java8
+        MemorySize: 512
+        # maximum timeout is 15 minutes today
+        Timeout: 900
+        Environment:
+            Variables:
+                # JAVA_TOOL_OPTIONS: "-Djavax.net.ssl.trustStore=lib/InternalAndExternalTrustStore.jks -Djavax.net.ssl.trustStorePassword=amazon"
+                APP_REGION: !Ref "AWS::Region"
+                TRANSCRIBE_REGION: !Ref "AWS::Region"
+                RECORDINGS_BUCKET_NAME: !Ref S3BucketName
+                RECORDINGS_KEY_PREFIX: !Ref audioFilePrefix
+                INPUT_KEY_PREFIX: !Ref rawAudioUploadPrefix
+                TABLE_CALLER_TRANSCRIPT: !Ref transcriptSegmentsTable
+                RECORDINGS_PUBLIC_READ_ACL: "FALSE"
+                CONSOLE_LOG_TRANSCRIPT_FLAG: "TRUE"
+                LOGGING_LEVEL: "FINE"
+                SAVE_PARTIAL_TRANSCRIPTS: "TRUE"
+
+        Code:
+            S3Bucket: !Join ["-", [!FindInMap [FunctionMap, Configuration, S3Bucket], Ref: "AWS::Region"]]
+            S3Key: !Join ["", [!FindInMap [FunctionMap, Configuration, S3Key], 'kvs_transcribe_streaming_lambda.zip']]
+
+    kvsConsumerTrigger:
+      Type: "AWS::Lambda::Function"
+      Properties:
+        Description:  >
+            AWS Lambda Function to start (asynchronous) streaming transcription; it is expected to be called by the
+            Amazon Connect Contact Flow.
+        Handler: "index.handler"
+        Role: !GetAtt AIPoweredSpeechAnalyticsKvsTriggerRole.Arn
+        Runtime: "nodejs8.10"
+        MemorySize: 128
+        Timeout: 30
+        Environment:
+            Variables:
+                transcriptionFunction: !Ref kvsTranscriber
+        Code:
+            S3Bucket: !Join ["-", [!FindInMap [FunctionMap, Configuration, S3Bucket], Ref: "AWS::Region"]]
+            S3Key: !Join ["", [!FindInMap [FunctionMap, Configuration, S3Key], 'kvs_trigger.zip']]
+
+    initContactDetails:
+      Type: "AWS::Lambda::Function"
+      Properties:
+        Description:  >
+            AWS Lambda Function that will be triggered when the call starts so that we have the initial contact details which can later add to when we have the transcript, and audio file location.
+        Handler: "index.handler"
+        Role: !GetAtt AIPoweredSpeechAnalyticsSTSTokenLambdaIAMRole.Arn
+        Runtime: "nodejs8.10"
+        MemorySize: 128
+        Timeout: 30
+        Environment:
+            Variables:
+                table_name: !Ref contactDetailsTable
+                assume_role: !GetAtt AIPoweredSpeechAnalyticsConnectUserStsRole.Arn
+        Code:
+            S3Bucket: !Join ["-", [!FindInMap [FunctionMap, Configuration, S3Bucket], Ref: "AWS::Region"]]
+            S3Key: !Join ["", [!FindInMap [FunctionMap, Configuration, S3Key], 'contact_init.zip']]
+
+    processContactSummary:
+      Type: "AWS::Lambda::Function"
+      Properties:
+        Description:  >
+            AWS Lambda Function that will be triggered when the wav call recording file is placed in S3. This function will collect all the transcript segments, and the audio file location and update the contact db.
+        Handler: "index.handler"
+        Role: !GetAtt AIPoweredSpeechAnalyticsProcessContactRole.Arn
+        Runtime: "nodejs8.10"
+        MemorySize: 256
+        Timeout: 120
+        Environment:
+            Variables:
+                contact_table_name: !Ref contactDetailsTable
+                transcript_seg_table_name: !Ref transcriptSegmentsTable
+        Code:
+            S3Bucket: !Join ["-", [!FindInMap [FunctionMap, Configuration, S3Bucket], Ref: "AWS::Region"]]
+            S3Key: !Join ["", [!FindInMap [FunctionMap, Configuration, S3Key], 'process_contact.zip']]
+
+    contactFlowCreator:
+      Type: "AWS::Lambda::Function"
+      Properties:
+        Description:  >
+            AWS Lambda Function that will create the initial sample contact flow and upload it to the S3 bucket
+        Handler: "index.handler"
+        Role: !GetAtt AIPoweredSpeechAnalyticsContactFlowCreatorRole.Arn
+        Runtime: "nodejs8.10"
+        MemorySize: 256
+        Timeout: 120
+        Code:
+            S3Bucket: !Join ["-", [!FindInMap [FunctionMap, Configuration, S3Bucket], Ref: "AWS::Region"]]
+            S3Key: !Join ["", [!FindInMap [FunctionMap, Configuration, S3Key], 'create_contact_flow.zip']]
+
+    invokeContactFlowCreator:
+        Type: Custom::CreateKVSContactFlow
+        Properties:
+            ServiceToken:
+                !GetAtt contactFlowCreator.Arn
+            bucketName:
+                !Ref createS3Bucket
+            contactInitFunction:
+                !GetAtt initContactDetails.Arn
+            kvsTriggerFunction:
+                !GetAtt kvsConsumerTrigger.Arn
+
+    #DynamoDB Table to maintain connections and contactId information
+    webSocketConnectionsDDBTable:
+        Type: 'AWS::DynamoDB::Table'
+        Properties:
+            TableName: !Ref webSocketConnectionsTableParam
+            AttributeDefinitions:
+                - AttributeName: connectionId
+                  AttributeType: S
+            KeySchema:
+                - AttributeName: connectionId
+                  KeyType: HASH
+            ProvisionedThroughput:
+                ReadCapacityUnits: 5
+                WriteCapacityUnits: 5
+            PointInTimeRecoverySpecification:
+                PointInTimeRecoveryEnabled: true
+            SSESpecification:
+                SSEEnabled: true
+            TimeToLiveSpecification:
+                AttributeName: ExpiresAfter
+                Enabled: true
+
+    #Beggining of Websocket API
+    AIPoweredSpeechAnalyticsWS:
+        Type: 'AWS::ApiGatewayV2::Api'
+        Properties:
+            Name: AIPoweredSpeechAnalyticsWS
+            ProtocolType: WEBSOCKET
+            RouteSelectionExpression: $request.body.action
+
+    ConnectRoute:
+        Type: 'AWS::ApiGatewayV2::Route'
+        Properties:
+            ApiId: !Ref AIPoweredSpeechAnalyticsWS
+            RouteKey: $connect
+            AuthorizationType: AWS_IAM
+            OperationName: ConnectRoute
+            Target: !Join
+                - /
+                - - integrations
+                  - !Ref ConnectInteg
+
+    ConnectInteg:
+        Type: 'AWS::ApiGatewayV2::Integration'
+        Properties:
+            ApiId: !Ref AIPoweredSpeechAnalyticsWS
+            Description: Connect Integration
+            IntegrationType: AWS_PROXY
+            IntegrationUri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${wsrealtimetranscribeOnConnect.Arn}/invocations
+
+    DisconnectRoute:
+        Type: 'AWS::ApiGatewayV2::Route'
+        Properties:
+            ApiId: !Ref AIPoweredSpeechAnalyticsWS
+            RouteKey: $disconnect
+            OperationName: DisconnectRoute
+            Target: !Join
+                - /
+                - - integrations
+                  - !Ref DisconnectInteg
+
+    DisconnectInteg:
+        Type: 'AWS::ApiGatewayV2::Integration'
+        Properties:
+            ApiId: !Ref AIPoweredSpeechAnalyticsWS
+            Description: Disconnect Integration
+            IntegrationType: AWS_PROXY
+            IntegrationUri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${wsrealtimetranscribeOnDisConnect.Arn}/invocations
+
+    SendRoute:
+        Type: 'AWS::ApiGatewayV2::Route'
+        Properties:
+            ApiId: !Ref AIPoweredSpeechAnalyticsWS
+            RouteKey: sendmessage
+            OperationName: SendRoute
+            Target: !Join
+                - /
+                - - integrations
+                  - !Ref SendInteg
+
+    SendInteg:
+        Type: 'AWS::ApiGatewayV2::Integration'
+        Properties:
+            ApiId: !Ref AIPoweredSpeechAnalyticsWS
+            Description: Send Integration
+            IntegrationType: AWS_PROXY
+            IntegrationUri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${wsrealtimetranscribeOnMessage.Arn}/invocations
+
+    NewCallRoute:
+        Type: 'AWS::ApiGatewayV2::Route'
+        Properties:
+            ApiId: !Ref AIPoweredSpeechAnalyticsWS
+            RouteKey: newcall
+            OperationName: NewCallRoute
+            Target: !Join
+                - /
+                - - integrations
+                  - !Ref NewCallInteg
+
+    NewCallInteg:
+        Type: 'AWS::ApiGatewayV2::Integration'
+        Properties:
+            ApiId: !Ref AIPoweredSpeechAnalyticsWS
+            Description: New Call Integration
+            IntegrationType: AWS_PROXY
+            IntegrationUri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${wsrealtimetranscribeDefault.Arn}/invocations
+
+    Deployment:
+        Type: 'AWS::ApiGatewayV2::Deployment'
+        DependsOn:
+            - ConnectRoute
+            - SendRoute
+            - DisconnectRoute
+            - NewCallRoute
+        Properties:
+            ApiId: !Ref AIPoweredSpeechAnalyticsWS
+
+    Stage:
+        Type: 'AWS::ApiGatewayV2::Stage'
+        Properties:
+            StageName: Prod
+            Description: Prod Stage
+            DeploymentId: !Ref Deployment
+            ApiId: !Ref AIPoweredSpeechAnalyticsWS
+
+    wsrealtimetranscribeOnConnect:
+        Type: 'AWS::Lambda::Function'
+        Properties:
+            Description: AWS Lambda Function that will be triggered when the browser initiates the websocket connection.
+            Handler: index.handler
+            Role: !GetAtt AIPoweredSpeechAnalyticsApiGwLambdaRole.Arn
+            Runtime: nodejs8.10
+            MemorySize: 128
+            Timeout: 30
+            Environment:
+                Variables:
+                    TABLE_NAME: !Ref webSocketConnectionsTableParam
+            Code:
+                S3Bucket: !Join ["-", [!FindInMap [FunctionMap, Configuration, S3Bucket], Ref: "AWS::Region"]]
+                S3Key: !Join ["", [!FindInMap [FunctionMap, Configuration, S3Key], 'ws_realtime_transcribe_OnConnect.zip']]
+
+    wsrealtimetranscribeOnConnectPermission:
+        Type: 'AWS::Lambda::Permission'
+        DependsOn:
+            - AIPoweredSpeechAnalyticsWS
+            - wsrealtimetranscribeOnConnect
+        Properties:
+            Action: 'lambda:InvokeFunction'
+            FunctionName: !Ref wsrealtimetranscribeOnConnect
+            Principal: apigateway.amazonaws.com
+
+    wsrealtimetranscribeOnDisConnect:
+        Type: 'AWS::Lambda::Function'
+        Properties:
+            Description:  AWS Lambda Function that will be triggered when the browser disconnect the websocket connection.
+            Handler: index.handler
+            Role: !GetAtt AIPoweredSpeechAnalyticsApiGwLambdaRole.Arn
+            Runtime: nodejs8.10
+            MemorySize: 128
+            Timeout: 30
+            Environment:
+                Variables:
+                    TABLE_NAME: !Ref webSocketConnectionsTableParam
+            Code:
+                S3Bucket: !Join ["-", [!FindInMap [FunctionMap, Configuration, S3Bucket], Ref: "AWS::Region"]]
+                S3Key: !Join ["", [!FindInMap [FunctionMap, Configuration, S3Key], 'ws_realtime_transcribe_OnDisconnect.zip']]
+
+    wsrealtimetranscribeOnDisConnectPermission:
+        Type: 'AWS::Lambda::Permission'
+        DependsOn:
+            - AIPoweredSpeechAnalyticsWS
+            - wsrealtimetranscribeOnDisConnect
+        Properties:
+            Action: 'lambda:InvokeFunction'
+            FunctionName: !Ref wsrealtimetranscribeOnDisConnect
+            Principal: apigateway.amazonaws.com
+
+    wsrealtimetranscribeOnMessage:
+        Type: 'AWS::Lambda::Function'
+        Properties:
+            Description: AWS Lambda Function that will be triggered when a message arrives from websocket.
+            Handler: index.handler
+            Role: !GetAtt AIPoweredSpeechAnalyticsApiGwLambdaRole.Arn
+            Runtime: nodejs8.10
+            MemorySize: 128
+            Timeout: 30
+            Environment:
+                Variables:
+                    TABLE_NAME: !Ref webSocketConnectionsTableParam
+            Code:
+                S3Bucket: !Join ["-", [!FindInMap [FunctionMap, Configuration, S3Bucket], Ref: "AWS::Region"]]
+                S3Key: !Join ["", [!FindInMap [FunctionMap, Configuration, S3Key], 'ws_realtime_transcribe_OnMessage.zip']]
+
+    wsrealtimetranscribeOnMessagePermission:
+        Type: 'AWS::Lambda::Permission'
+        DependsOn:
+            - AIPoweredSpeechAnalyticsWS
+            - wsrealtimetranscribeOnMessage
+        Properties:
+            Action: 'lambda:InvokeFunction'
+            FunctionName: !Ref wsrealtimetranscribeOnMessage
+            Principal: apigateway.amazonaws.com
+
+    wsrealtimetranscribeDefault:
+        Type: 'AWS::Lambda::Function'
+        Properties:
+            Description: AWS Lambda Function that will be triggered when no action is mapped to the websocket.
+            Handler: index.handler
+            Role: !GetAtt AIPoweredSpeechAnalyticsApiGwLambdaRole.Arn
+            Runtime: nodejs8.10
+            MemorySize: 128
+            Timeout: 30
+            Environment:
+                Variables:
+                    TABLE_NAME: !Ref webSocketConnectionsTableParam
+            Code:
+                S3Bucket: !Join ["-", [!FindInMap [FunctionMap, Configuration, S3Bucket], Ref: "AWS::Region"]]
+                S3Key: !Join ["", [!FindInMap [FunctionMap, Configuration, S3Key], 'ws_realtime_transcribe_Default.zip']]
+
+    wsrealtimetranscribeDefaultPermission:
+        Type: 'AWS::Lambda::Permission'
+        DependsOn:
+            - AIPoweredSpeechAnalyticsWS
+            - wsrealtimetranscribeDefault
+        Properties:
+            Action: 'lambda:InvokeFunction'
+            FunctionName: !Ref wsrealtimetranscribeDefault
+            Principal: apigateway.amazonaws.com
+
+    wsrealtimetranscribeOnDDBInsert:
+        Type: 'AWS::Lambda::Function'
+        DependsOn:
+            - transcriptSegmentsDDBTable
+        Properties:
+            Description: AWS Lambda Function that will be triggered when transcribe segments are written into the dynamodb.
+            Handler: index.handler
+            Role: !GetAtt AIPoweredSpeechAnalyticsApiGwLambdaRole.Arn
+            Runtime: nodejs8.10
+            MemorySize: 128
+            Timeout: 30
+            Environment:
+                Variables:
+                    TABLE_NAME: !Ref webSocketConnectionsTableParam
+                    DOMAIN_NAME: !Join
+                        - ''
+                        - - !Ref AIPoweredSpeechAnalyticsWS
+                          - .execute-api.
+                          - !Ref 'AWS::Region'
+                          - .amazonaws.com
+                    STAGE_NAME: !Ref Stage
+
+            Code:
+                S3Bucket: !Join ["-", [!FindInMap [FunctionMap, Configuration, S3Bucket], Ref: "AWS::Region"]]
+                S3Key: !Join ["", [!FindInMap [FunctionMap, Configuration, S3Key], 'ws_realtime_transcribe_OnDDBInsert.zip']]
+
+    transcribeSegmentsDDBTrigger:
+        Type: AWS::Lambda::EventSourceMapping
+        DependsOn:
+            - transcriptSegmentsDDBTable
+            - AIPoweredSpeechAnalyticsApiGwLambdaRole
+            - wsrealtimetranscribeOnDDBInsert
+        Properties:
+            BatchSize: 1
+            Enabled: True
+            EventSourceArn:
+                Fn::GetAtt: [ transcriptSegmentsDDBTable, StreamArn ]
+            FunctionName: !GetAtt wsrealtimetranscribeOnDDBInsert.Arn
+            StartingPosition: LATEST
+
+    AIPoweredSpeechAnalyticsLambdaCRHIAMRole:
+        Type: "AWS::IAM::Role"
+        Properties:
+          AssumeRolePolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              -
+                Effect: "Allow"
+                Principal:
+                  Service:
+                    - "lambda.amazonaws.com"
+                Action:
+                  - "sts:AssumeRole"
+          Path: "/"
+          Policies:
+            -
+              PolicyName: connect-kvs-s3-for-aipsas
+              PolicyDocument:
+                Version: "2012-10-17"
+                Statement:
+                  -
+                    Effect: "Allow"
+                    Action:
+                      - 'logs:CreateLogGroup'
+                      - 'logs:CreateLogStream'
+                      - 'logs:PutLogEvents'
+                    Resource:
+                      - !Sub "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/*"
+                  -
+                    Effect: "Allow"
+                    Action:
+                      - "s3:PutObject"
+                      - "s3:GetObject"
+                      - "s3:PutObjectAcl"
+                    Resource:
+                      - !Sub ${createWebSiteS3Bucket.Arn}/*
+                  -
+                    Effect: "Allow"
+                    Action:
+                      - "s3:GetObject"
+                    Resource:
+                      -  !Join
+                          - ''
+                          - - 'arn:'
+                            - !Ref 'AWS::Partition'
+                            - ':s3:::'
+                            - !Join ["-", [!FindInMap [FunctionMap, Configuration, S3Bucket], Ref: "AWS::Region"]]
+                            - '/*'
+
+    CustomResourceHelper:
+        Type: AWS::Lambda::Function
+        Properties:
+            Code:
+                S3Bucket: !Join ["-", [!FindInMap [FunctionMap, Configuration, S3Bucket], Ref: "AWS::Region"]]
+                S3Key: !Join ["", [!FindInMap [FunctionMap, Configuration, S3Key], 'custom-resource-helper.zip']]
+            Description: Solution Accelerator for Web Analytics - Function to deploy web pages.
+            Handler: index.handler
+            MemorySize: 256
+            Role: !GetAtt AIPoweredSpeechAnalyticsLambdaCRHIAMRole.Arn
+            Runtime: nodejs8.10
+            Timeout: 300
+
+    SolutionAnonymousMetric:
+        Type: "Custom::LoadLambda"
+        Properties:
+            ServiceToken:
+                Fn::GetAtt:
+                    - "CustomResourceHelper"
+                    - "Arn"
+            Region:
+                - Ref: "AWS::Region"
+            solutionId: !FindInMap ["FunctionMap", "Configuration", "SolutionID"]
+            UUID: !GetAtt SolutionUuid.UUID
+            version: "1"
+            anonymousData: !FindInMap ["Send", "AnonymousUsage", "Data"]
+            customAction: "sendMetric"
+
+    SolutionUuid:
+          Type: "Custom::LoadLambda"
+          Properties:
+              ServiceToken:
+                  Fn::GetAtt:
+                      - "CustomResourceHelper"
+                      - "Arn"
+              Region:
+                  - Ref: "AWS::Region"
+              customAction: "createUuid"
+
+    ConfigureWebsite:
+        Type: Custom::LoadLambda
+        DependsOn:
+            - createS3Bucket
+            - AIPoweredSpeechAnalyticsWS
+        Properties:
+            ServiceToken: !GetAtt CustomResourceHelper.Arn
+            Region: !Ref AWS::Region
+            customAction: configureWebsite
+            sourceS3Bucket: !Join ["-", [!FindInMap [FunctionMap, Configuration, S3Bucket], Ref: "AWS::Region"]]
+            sourceS3key: !Join ["", [!FindInMap [FunctionMap, Configuration, S3Key], 'web_site']]
+            destS3Bucket: !Ref createWebSiteS3Bucket
+            destS3KeyPrefix: CCP
+            transcriptS3KeyBucket: !Ref S3BucketName
+            instanceId: !Ref instanceIdParam
+            instanceName: !Ref instanceNameParam
+            UUID: !GetAtt SolutionUuid.UUID
+            data: !FindInMap [Send, AnonymousUsage, Data]
+            solutionId: !FindInMap [FunctionMap, Configuration, SolutionID]
+            webSocketHost:
+                !Join
+                    - ''
+                    - - 'wss://'
+                      - !Ref AIPoweredSpeechAnalyticsWS
+                      - .execute-api.
+                      - !Ref 'AWS::Region'
+                      - .amazonaws.com/
+                      - !Ref Stage
+
+    AIPSAnalyticsCloudFrontDistributionAccessIdentity:
+        Type: AWS::CloudFront::CloudFrontOriginAccessIdentity
+        Properties:
+          CloudFrontOriginAccessIdentityConfig:
+            Comment: 'CloudFront OAI for AI Powered Speech Analytics'
+
+    AIPSAnalyticsCloudFrontDistribution:
+        Type: AWS::CloudFront::Distribution
+        DependsOn:
+            - CustomResourceHelper
+            - createWebSiteS3Bucket
+            - createS3Bucket
+        Properties:
+          DistributionConfig:
+            Origins:
+            - DomainName:
+                !Join
+                    - ''
+                    - - !Ref S3BucketNameForWebSite
+                      - .s3.amazonaws.com
+              Id: !Ref S3BucketNameForWebSite
+              OriginPath: '/CCP'
+              S3OriginConfig:
+                OriginAccessIdentity:
+                    !Join
+                        - ''
+                        - - 'origin-access-identity/cloudfront/'
+                          - !Ref AIPSAnalyticsCloudFrontDistributionAccessIdentity
+            Enabled: 'true'
+            Logging:
+                Bucket: !GetAtt createS3Bucket.DomainName
+                Prefix: 'logs/'
+                IncludeCookies: 'true'
+            Comment: CloudFront for AI Powered Speech Analytics
+            DefaultRootObject: agentAssist.html
+            DefaultCacheBehavior:
+                AllowedMethods:
+                    - DELETE
+                    - GET
+                    - HEAD
+                    - OPTIONS
+                    - PATCH
+                    - POST
+                    - PUT
+                TargetOriginId: !Ref S3BucketNameForWebSite
+                ForwardedValues:
+                    QueryString: true
+                    Cookies:
+                        Forward: all
+                ViewerProtocolPolicy: redirect-to-https
+            PriceClass: !Ref cloudFrontPriceClass
+            Restrictions:
+                GeoRestriction:
+                    RestrictionType: whitelist
+                    Locations:
+                        - US
+                        - JP
+                        - AU
+                        - FR

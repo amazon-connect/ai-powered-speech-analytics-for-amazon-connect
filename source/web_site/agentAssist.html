@@ -1,0 +1,1005 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Amazon Connect Demo Site</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+
+    <link type="text/css" href="css/style.css" rel="stylesheet"  />
+    <link type="text/css" href="css/copybutton.css" rel="stylesheet" />
+    <link type="text/css" href="css/menuStyle.css" rel="stylesheet"  />
+    <link type="text/css" href="css/tipsy.css" rel="stylesheet"  />
+
+    <script type="text/javascript" src="js/jquery-3.1.0.min.js"></script>
+    <script type="text/javascript" src="js/jquery-ui.js"></script>
+    <script type="text/javascript" src="js/jquery.dataTables.min.js"></script>
+	
+	<script type="text/javascript" src="js/aws-credentials.js"></script>
+    <script type="text/javascript" src="js/connectCCP.js"></script>
+    <script type="text/javascript" src="js/clipboard.min.js"></script>
+    <script type="text/javascript" src="js/demo-common.js"></script>
+    <script type="text/javascript" src="js/progressbar.js"></script>
+
+</head>
+
+<body>
+    <!--navbar div with the id-->
+    <script>
+        var clipboard = new Clipboard('.btn');
+        clipboard.on('success', function (e) {
+            console.log(e);
+        });
+
+        clipboard.on('error', function (e) {
+            console.log(e);
+        });
+    </script>
+    <style>
+        #ccpContainer {
+            width: 200px;
+            height: 570px;
+            overflow: hidden;
+            float: left;
+            margin-left: 22px;
+            padding: 10px;
+            
+        }
+
+        #section-main {
+            padding: 10px;
+            max-width: 690px;
+            height: 570px;
+            margin-left: 0px;
+            float: left;
+            overflow: auto;
+        }
+
+        #section-agent {
+            padding: 10px;
+            max-width: 300px;
+            height: 570px;
+            margin-left: 0px;
+            float: left;
+            overflow: auto;
+        }
+
+        #translateLang {
+            margin-left: 138px;
+            margin-top: 5px;
+            padding-left: 20px;
+        }
+
+         #kvst {
+            padding: 10px;
+            width: 917px;
+            margin-left: 22px;
+            
+            overflow: hidden;
+        }
+
+         .transcript-row{
+      margin-bottom: 5px;
+      }
+
+       #transcript-text{
+            min-height: 130px;
+            max-height: 200px;
+            overflow: auto;
+            padding: 5px; 
+            color: #666; 
+            background: #f5f5f5; 
+            border: 1px solid #ccc; 
+            margin: 5px 0; 
+            font:1em "Lucida Grande", "Lucida Sans Unicode", Arial, sans-serif; 
+            -webkit-border-radius:5px; 
+            -moz-border-radius:5px; 
+            border-radius:5px; 
+            vertical-align: top;
+            transition: all 0.25s ease-in-out; 
+            -webkit-transition: all 0.25s ease-in-out; 
+            -moz-transition: all 0.25s ease-in-out; 
+            box-shadow: 0 0 5px rgba(81, 203, 238, 0); 
+            -webkit-box-shadow: 0 0 5px rgba(81, 203, 238, 0); 
+            -moz-box-shadow: 0 0 5px rgba(81, 203, 238, 0); 
+        } 
+
+        #transcript-text-entities{
+            min-height: 130px;
+            max-height: 200px;
+            overflow: auto;
+            padding: 5px; 
+            color: #666; 
+            background: #f5f5f5; 
+            border: 1px solid #ccc; 
+            margin: 5px 0; 
+            font:1em "Lucida Grande", "Lucida Sans Unicode", Arial, sans-serif; 
+            -webkit-border-radius:5px; 
+            -moz-border-radius:5px; 
+            border-radius:5px; 
+            vertical-align: top;
+            transition: all 0.25s ease-in-out; 
+            -webkit-transition: all 0.25s ease-in-out; 
+            -moz-transition: all 0.25s ease-in-out; 
+            box-shadow: 0 0 5px rgba(81, 203, 238, 0); 
+            -webkit-box-shadow: 0 0 5px rgba(81, 203, 238, 0); 
+            -moz-box-shadow: 0 0 5px rgba(81, 203, 238, 0); 
+        } 
+
+        #translated-text{
+            min-height: 130px;
+            max-height: 200px;
+            overflow: auto;
+            padding: 5px; 
+            color: #666; 
+            background: #f5f5f5; 
+            border: 1px solid #ccc; 
+            margin: 5px 0; 
+            font:1em "Lucida Grande", "Lucida Sans Unicode", Arial, sans-serif; 
+            -webkit-border-radius:5px; 
+            -moz-border-radius:5px; 
+            border-radius:5px; 
+            vertical-align: top;
+            transition: all 0.25s ease-in-out; 
+            -webkit-transition: all 0.25s ease-in-out; 
+            -moz-transition: all 0.25s ease-in-out; 
+            box-shadow: 0 0 5px rgba(81, 203, 238, 0); 
+            -webkit-box-shadow: 0 0 5px rgba(81, 203, 238, 0); 
+            -moz-box-shadow: 0 0 5px rgba(81, 203, 238, 0); 
+        } 
+
+        #attributes_wrapper {
+            font-size: 14px;
+            width: 550px;
+            height: 175px;
+            overflow-y: scroll;
+            overflow-x: hidden;
+        }
+
+        .suggestedActions{
+            cursor:pointer;
+            color:blue;
+            text-decoration:underline;
+        }
+
+   
+
+	/*entity categories and color mapping
+	    BOOK - #98DF8A
+	    BRAND - #FF9896
+	    COMMERCIAL_ITEM - #C7C7C7
+	    DATE - #9EDAE5
+	    EVENT - #FFBB78
+	    GAME - #C49C94
+	    LOCATION - #C5B0D5
+	    MOVIE - #DBDB8D
+	    ORGANIZATION - #F7B6D2
+	    OTHERS - #AEC7E8
+	    OTHER - #17BECF
+	    PERSON - #BCBD22
+	    QUANTITY - #7F7F7F
+	    SOFTWARE - #E377C2
+	    SONG - #8C564B
+	    TITLE_OTHERS - #9467BD
+	    TITLE - #D62728
+	 */
+	
+	.line_color_book {
+	    border-bottom: 3px solid #98DF8A;
+	}
+	
+	.line_color_brand {
+	    background-color: #FF9896;
+	}
+	
+	.line_color_commercial_item {
+	    border-bottom: 3px solid #C7C7C7;
+	}
+	
+	.line_color_date {
+	    border-bottom: 3px solid #9EDAE5;
+	}
+	
+	.line_color_event {
+	    border-bottom: 3px solid #FFBB78;
+	}
+	
+	.line_color_game {
+	    border-bottom: 3px solid #C49C94;
+	}
+	
+	.line_color_location {
+	    border-bottom: 3px solid #C5B0D5;
+	}
+	
+	.line_color_movie {
+	    border-bottom: 3px solid #DBDB8D;
+	}
+	
+	.line_color_organization {
+	    border-bottom: 3px solid #F7B6D2;
+	}
+	
+	.line_color_others {
+	    border-bottom: 3px solid #98DF8A;
+	}
+	
+	.line_color_other {
+	    border-bottom: 3px solid #17BECF;
+	}
+	
+	.line_color_person {
+	    border-bottom: 3px solid #BCBD22;
+	}
+	
+	.line_color_quantity {
+	    border-bottom: 3px solid #7F7F7F;
+	}
+	
+	.line_color_software {
+	    border-bottom: 3px solid #E377C2;
+	}
+	
+	.line_color_song:before {
+	    border-bottom: 3px solid #8C564B;
+	}
+	
+	.line_color_title_others {
+	    border-bottom: 3px solid #9467BD;
+	}
+	
+	.line_color_title {
+	    border-bottom: 3px solid #D62728;
+	}
+	
+	.key_phrases_line_color {
+	    border-bottom: 2px solid #007dbc
+	}
+
+    .line_color_key_phrases {
+	    border-bottom: 2px solid #007dbc
+	}
+
+	.awsui .awsui-tooltip-trigger {
+    	display: inline-block;
+	}
+	.awsui .awsui-tooltip-position-bottom {
+    padding-top: 1rem;
+	}
+	.awsui .awsui-tooltip-wrap {
+	    display: none;
+	    position: absolute;
+	    z-index: 1001;
+	}
+	.awsui .awsui-tooltip-text {
+    position: relative;
+    -webkit-box-sizing: border-box;
+    box-sizing: border-box;
+    color: #d5dbdb;
+    padding: 0.75rem 1rem;
+    font-size: 1.2rem;
+    line-height: 1.6rem;
+    font-family: "Amazon Ember", "Helvetica Neue", Roboto, Arial, sans-serif;
+    border-radius: 2px;
+    word-wrap: break-word;
+    background-color: #121312;
+	}
+   .awsui .awsui-tooltip-text {
+    position: relative;
+    -webkit-box-sizing: border-box;
+    box-sizing: border-box;
+    color: #d5dbdb;
+    padding: 0.75rem 1rem;
+    font-size: 1.2rem;
+    line-height: 1.6rem;
+    font-family: "Amazon Ember", "Helvetica Neue", Roboto, Arial, sans-serif;
+    border-radius: 2px;
+    word-wrap: break-word;
+    background-color: #121312;
+	}
+	.narrow {
+	    display: inline-block;
+	    width: 125px;
+	}	
+    textarea {
+    overflow-y: scroll;
+    height: 100px;
+    resize: none; /* Remove this if you want the user to resize the textarea */
+}
+
+
+ #sentimentWrapper {
+  display: flex;
+}
+#sentimentLabel {
+  flex: 0 0 65%;
+}
+#sentimentBar {
+  flex: 1;
+  width: 300px;
+  height: 10px;
+  margin-left: 20px;
+}
+
+</style>
+
+    <script src="js/aws-sdk-2.435.0.min.js"></script>
+    <script src="js/jquery.tipsy.js"></script>
+
+    <section id="ccpContainer">
+        <div id="ccpContainer1">
+
+            <script>
+                //Connect CCP Integration
+                var spanCounter = 0;
+                var transcriptText = "";
+            	var ws ;
+                var container = document.getElementById("ccpContainer");
+                var instanceAlias = alias;
+                var loginURL = `https://${instanceAlias}.awsapps.com/connect/login`;
+                var ccpURL = `https://${alias}.awsapps.com/connect/ccp`;
+                var loginWindow;
+                var fromLanguage;
+                const fromLanguageDict = {
+                    "en-US": "en",
+                    "es-US": "es"
+                };
+                window.ccp = window.ccp || {};
+                connect.core.initCCP(container, {
+                    ccpUrl: ccpURL,
+                    loginPopup: false,
+                    softphone: {
+                        allowFramedSoftphone: true,
+                        disableRingtone: false
+                    }
+                });
+                connect.core.getEventBus().subscribe(connect.EventType.ACK_TIMEOUT, function () {
+                    try {
+                        connect.getLog().warn("ACK_TIMEOUT occurred, attempting to pop the login page.");
+                        var width = 500;
+                        var height = 600;
+                        var left = (screen.width / 2) - (width / 2);
+                        var top = (screen.height / 2) - (height / 2);
+
+                        loginWindow = window.open(loginURL, true, "width=" + width + ",height=" + height +
+                            ",menubar=no,status=no,toolbar=no,left=" + left + ",top=" + top);
+                    } catch (e) {
+                        connect.getLog().error(
+                            "ACK_TIMEOUT occurred but we are unable to open the login popup." + e).withException(
+                            e);
+                    }
+
+                    connect.core.getEventBus().subscribe(connect.EventType.ACKNOWLEDGE, function () {
+                        closeLoginWindow();
+                    });
+
+                });
+
+                function closeLoginWindow() {
+                    loginWindow.close();
+                }
+
+                connect.agent((agent) => {
+                    window.ccp.agent = agent;
+                });
+
+
+                var c;
+                var contactID;
+                connect.contact(function (contact) {
+                    c = contact;
+                    c.onConnecting(function (c) {
+						sendMetrics();
+                        contactID = contact.contactId;
+                        var attr = c.getAttributes();
+                        var c1 = c.getConnections()[1];
+                        var c2 = c.getStatus();
+                        document.getElementById("contactID").value = c.contactId;
+                        fromLanguage = attr.languageCode.value;
+                        const aid = attr.aid.value;
+                        const sak = attr.sak.value;
+                        const sst = attr.sst.value;
+                        const reg = getRegion();
+                        try{
+                       		AWS.config.update({
+                       		  accessKeyId: aid, secretAccessKey: sak, sessionToken: sst, region: reg
+                       		});	
+                            AWS.config.credentials.get(function (err) {
+                            	if(err)
+                         			console.log(err);
+                            	else{
+                            		credentials = AWS.config.credentials;
+                                	console.log('fire up websockets');
+                                	WebSocketTest(getWebSocket());
+                                	console.log('websockets fired up ');
+                            	}
+                         	});
+                        	
+                        }catch(e){
+                        	console.log(e);
+                        }
+                        
+                    });
+
+                    c.onRefresh((c) => {
+                        console.log(`contact refreshed`);
+                        fillTable(c.getAttributes());
+                    });
+
+                    c.onConnected(() => {
+						//build the relationship between the connectionId and the contactId
+                        sendMessage2(contactID);
+
+                    });
+
+                });
+
+                var table;
+                $(document).ready((a) => {
+                    table = $('#attributes').DataTable({
+                        columns: [{
+                                title: "Name"
+                            },
+                            {
+                                title: "Value"
+                            }
+                        ],
+                        paging: false,
+                        info: false,
+                        searching: false
+                    });
+                    table.draw();
+                    $("#showAttributes").click(() => {
+                        $('#visibleAttributes').show();
+                        $('#hiddenAttributes').hide();
+                    });
+                    $("#hideAttributes").click(() => {
+                        $('#visibleAttributes').hide();
+                        $('#hiddenAttributes').show();
+                    });
+
+
+                    $("#showEntities").click(() => {
+                        $('#transcript1').show();
+                        $('#transcript').hide();
+                    });
+
+                    $("#showKeyPhrases").click(() => {
+                        $('#transcript1').hide();
+                        $('#transcript').show();
+                    });
+
+
+                    //erm   $('#translateLang').val('ja');
+                });
+
+                var fillTable = (attributes) => {
+                    table.clear();
+                    for (var k in attributes) {
+                        var value = attributes[k].value;
+                        if (value.startsWith("http")) {
+                            value = '<a target="_blank" href="' + value + '">' + value + '</a>'
+                        }
+                        var hideAttributes = ['aid', 'sak', 'sst'];
+                        if (!hideAttributes.includes(k)) {
+                            table.row.add([k, value]);
+                        }
+                    }
+                    table.draw();
+                };
+
+
+                // Reset form after agent becomes available again
+                connect.agent((agent) => {
+                    agent.onStateChange((event) => {
+                        if (event.newState === 'Available') {
+                        	try{
+                        		//write the transcripts to S3 an update the attributes with sentinment analysis
+                        		getOverallSentiment(transcriptText, true);
+                                getSentiment('', true);
+                        	}catch(e){
+                        		console.log(e);
+                        	}
+                        	try{
+                            	//close the websockets
+                            	if(ws){
+                            		console.log('closing websockets');
+                            		ws.close();
+                            		console.log('closed websockets');
+                            	}
+                            	
+                        	}catch(e){
+                        		console.log('error closing websockets');
+                        		console.log(e);
+                        	}
+						
+                            document.getElementById("contactDetails").reset();
+                            document.getElementById("transcript-text").innerHTML = "";
+                            document.getElementById("transcript-text-entities").innerHTML = "";
+                            document.getElementById("translated-text").innerHTML = "";
+                            $('#attributes').DataTable().clear().draw();
+                            spanCounter = 0;
+                            document.getElementById('updateNameIMG').src = "assets/sync.svg";
+                            $('#imgCurrentSentiment').attr('src',
+                                'assets/04_ico_emoji_neutral.svg');
+                            bar.animate(0);
+                            $("#section-agent").hide("slide");
+                            document.getElementById("agentActionLabel").innerHTML = "";
+
+                        }
+                    });
+                });
+            </script>
+			
+            <script>
+                //Gateway API with Websocket
+            
+            var connectionID;
+        	function sendMessage(contactID){
+        		console.log("sending dummy request");
+				var message = new Object();
+				message.action = "newcall";
+				//message.data = {};
+				//message.data.connectionId="123";
+				//message.data.contactID="1234";
+				message.data="connId@1234|contactID@1234";
+                console.log(message);
+                var data = JSON.stringify(message);
+                console.log(data);
+                ws.send(data);
+                console.log("Message is sent...");
+        	}
+        	
+        	function sendMessage2(contactID){
+        		console.log("sending new connection id");
+				var message = new Object();
+				message.action = "sendmessage";
+				/*message.data = {};
+				message.data.connectionId=connectionID;
+				message.data.contactID=contactID;*/
+				message.data = "conndId@" + connectionID + "|contactID@" + contactID;
+                console.log(message);
+                var data = JSON.stringify(message);
+                console.log(data);
+                ws.send(data);
+                console.log("Message is sent...");
+        	}
+        	
+            function WebSocketTest(wsHost) {
+                  if ("WebSocket" in window) {
+                    console.log("WebSocket is supported by your Browser!");
+					var url = document.createElement('a');
+                    url.href =  wsHost;
+					var sigv4 = getSignedUrl(url.hostname, url.pathname, getRegion(), credentials)
+					ws = new WebSocket(sigv4);
+
+                     // Let us open a web socket
+                     ws.onopen = function(evt) {
+                        // Web Socket is connected, send data using send() to get the connectionId
+                        console.log("Connection opened : ", evt);
+                        sendMessage();
+                        console.log("Connected to Websocket...");
+                     };
+
+                     ws.onmessage = function (evt) {
+                        console.log(new Date(), ' Message received from WS');
+                        if(evt.data.includes("connectionId")){
+                        	var d = JSON.parse(evt.data);
+                        	connectionID = d.connectionId;
+                        	return;
+                        }else{
+                        	var dt = evt.data.split('@');
+                        	var st = dt[0];
+                            var bool = dt[1];
+                            var currentSegId = dt[2];
+                        	if(spanCounter==0){
+                                spanCounter ++;
+                                $('#transcript-text').append(" <span " + "id='transSpan" + currentSegId +  "' class='transcript-row'></span>");
+                                $('#transcript-text-entities').append(" <span " + "id='transEntitiesSpan" + currentSegId +  "' class='transcript-row'></span>");
+                            }
+                            processText(st,bool,currentSegId);
+                        }
+
+                     };
+
+                     ws.onclose = function() {
+                        // websocket is closed.
+                        console.log("Connection is closed...", event);
+                        console.log('Onclose called, code is : ' , event.code, ' reason is ' , event.reason , ' wasClean  is' , event.wasClean);
+                        if(event.code == 1006 && event.wasClean == false){
+                        	console.log("Connection is closed due to connectivity issue");
+                        }
+                     };
+                  } else {
+                     // The browser doesn't support WebSocket
+                     console.log("WebSocket NOT supported by your Browser!");
+                  }
+               }
+
+
+               function processText(text,isPartial,segID){
+                    var space = " ";
+                    if(isPartial === "false"){
+                        translateToDifferentLanguage(text);
+                        getKeyPhrases(text,segID);
+                        getEntities(text,segID);
+                        getSentiment(text, false);
+                        transcriptText = transcriptText += space += text;
+                        getOverallSentiment(transcriptText,false);
+                        spanCounter=0;
+                    }
+                    $("#transSpan" + segID).html(text);
+                    $("#transEntitiesSpan" + segID).html(text);
+               }
+            
+
+
+            function getKeyPhrases(txt,segment){
+                var comprehend = new AWS.Comprehend();
+                        var originalText = txt;
+                        var params = {
+							  LanguageCode: fromLanguageDict[fromLanguage], /* required */
+							  Text: txt
+                            };
+                            comprehend.detectKeyPhrases(params, function(err, data) {
+							  if (err) 
+                                  console.log("an error happened in the detectKeyPhrases" + err, err.stack); // an error occurred
+                                  else{				  
+                                  if (data.KeyPhrases){
+                                  data.KeyPhrases.forEach(function(element){
+									  var action = getAgentAction(originalText, element.Text);
+									  var tmp = createKeyPhrasesSpanWithColors(element.Text, action);
+									  txt = txt.replace(element.Text, tmp);
+									  
+                                  });
+                                }
+                                  $("#transSpan" + segment).html(txt); 
+
+                                }
+                            });
+            }
+
+            function getEntities(txt,segment){
+                var comprehend = new AWS.Comprehend();
+                var params = {
+							  LanguageCode: 'en', /* required */
+							  Text: txt
+                            };
+                comprehend.detectEntities(params, function(err, data) {
+							  if (err) 
+								  console.log("an error happened in the detectEntities" + err, err.stack); // an error occurred
+							  else{				  
+								  if (data.Entities){
+                                    data.Entities.forEach(function(element){
+									  //console.log(element);
+									  var tmp = createEntitiesSpanWithColors(element.Type, element.Text, element.Score);
+									  txt = txt.replace(element.Text, tmp);
+								  });
+
+                                  }
+                              $("#transEntitiesSpan" + segment).html(txt);
+	              			  $('.awsui-tooltip-trigger').tipsy({
+	            					gravity : 'n',
+	            					fade : true
+	            			  });
+							  }
+                            });
+            }
+
+				//-----------------Translate to Different Language---------------------------
+				function translateToDifferentLanguage(source) {
+					var toLanguage = $('#translateLang').val();
+					var fromLanguageShorthand = fromLanguageDict[fromLanguage];
+					console.log('Translating from: ' + fromLanguageShorthand + ' to: ' + toLanguage);
+					var translate = new AWS.Translate();
+					var params = {
+							  SourceLanguageCode: fromLanguageShorthand ? fromLanguageShorthand : "en", /* required */
+							  TargetLanguageCode: toLanguage, /* required */
+							  Text: source
+							};
+							translate.translateText(params, function(err, data) {
+							  if (err) 
+								  console.log(err, err.stack); // an error occurred
+							  else{				  
+								  $('#translated-text').append(" <span class='translate-row'>" + data.TranslatedText + "</span>");
+							  }
+							});
+				}
+
+				function createKeyPhrasesSpanWithColors(text,action){
+						var newKeyPhrasesSpan = '<span><awsui-tooltip class="entity_word line_color_key_phrases initialized="true"><span><span class="awsui-tooltip-trigger" awsui-tooltip-region="trigger" original-title="' + action + '">' + text + '</span></span></awsui-tooltip></span>';
+						return newKeyPhrasesSpan;
+                }
+                
+                function createEntitiesSpanWithColors(entity, text, score){
+                 		var m = parseFloat(score * 100).toFixed(2);
+						var newEntitiesSpan = '<span><awsui-tooltip class="entity_word line_color_' + entity.toLowerCase() + ' initialized="true"><span><span class="awsui-tooltip-trigger" awsui-tooltip-region="trigger" original-title="Type : ' + entity + ' - Confidence : ' + m  + '%">' + text + '</span></span></awsui-tooltip></span>';
+                        return newEntitiesSpan;
+				}
+				
+				
+
+				
+				function getSentiment(source, isEndOfCall){
+			
+    		        var imgPositive = 'assets/06_ico_emoji_good.svg';
+					var imgNegitive = 'assets/01_ico_emoji_angry.svg';
+					var imgMixed = 'assets/03_ico_emoji_meh.svg';
+					var imgNeutral = 'assets/04_ico_emoji_neutral.svg';
+					var imgSuperPositive = 'assets/07_ico_emoji_fantastic.svg';
+					if (isEndOfCall) {
+                        $('#imgCurrentSentiment').attr('src',imgNeutral);
+                        return;
+                    }
+
+					var comprehend = new AWS.Comprehend();
+					var params = {
+							  LanguageCode: fromLanguageDict[fromLanguage], /* required */
+							  Text: source
+							};
+							comprehend.detectSentiment(params, function(err, data) {
+							  if (err) 
+								  console.log(err, err.stack); // an error occurred
+							  else{				  
+								 // console.log(`Processed sentiment for face: ${source} and the results are: ${JSON.stringify(data)}`);           // successful response
+   								 $('#currentSentiment').val(data.Sentiment);
+								  sentiment = data.Sentiment;
+								  if(data.Sentiment =='NEUTRAL')
+									  $('#imgCurrentSentiment').attr('src',imgNeutral);
+                                  else if (data.Sentiment == 'POSITIVE' && data.SentimentScore.Positive > .9885)
+                                      $('#imgCurrentSentiment').attr('src',imgSuperPositive);
+                                      else if (data.Sentiment == 'POSITIVE')
+                                      $('#imgCurrentSentiment').attr('src',imgPositive);
+								  else if(data.Sentiment =='NEGATIVE')
+									  $('#imgCurrentSentiment').attr('src',imgNegitive);
+								  else
+									  $('#imgCurrentSentiment').attr('src',imgMixed);
+							  }
+							});
+					return;
+				}
+
+				function getOverallSentiment(text, endOfCall){
+                    if (text) {
+						if(text.length>0){
+							var source = text;
+							var comprehend = new AWS.Comprehend();
+							var params = {
+									  LanguageCode: fromLanguageDict[fromLanguage], /* required */
+									  Text: source
+									};
+									comprehend.detectSentiment(params, function(err, data) {
+									  if (err) 
+										  console.log(err, err.stack);
+									  else {
+                                          if(endOfCall) {
+                                              updateContactAttributes(text, data);
+                                              resetSentimentBar();
+                                          } else {
+                                              refreshSentimentBar(data);
+                                          }
+                                      }
+									});
+							return;
+						}
+					} else if (endOfCall) {
+                        resetSentimentBar();
+                    }
+				}
+                
+                 //UpdateContact Attributes with overall sentiment and transcript text
+				function updateContactAttributes (transcript, sentimentData){
+					try{						
+						const awsconnect = new AWS.Connect();
+						var attributes={};
+						var newSentiment = titleCase(sentimentData.Sentiment);
+						var sentimentScore = sentimentData.SentimentScore[newSentiment].toString(16);                        
+						attributes.sst = '';
+						attributes.sak  = '';
+						attributes.aid  = '';
+						attributes.transcriptLocation  = 'https://s3-' + getRegion() + '.amazonaws.com/' + getBucketName() + '/transcripts/' + contactID + ".txt" ;
+					    attributes.customerSentiment = newSentiment;
+					    attributes.customerSentimentScore = sentimentScore;
+					    var i = getInstanceId(); 
+					    var params = {
+					            Attributes: attributes,
+					            InitialContactId: contactID,
+					            InstanceId: i };
+					    awsconnect.updateContactAttributes(params, function (err, res) {
+					    	console.log("we are about to update the record");
+					        console.log(params);
+					    	if (err) {
+					    		console.log("Error updating contact attributes : ", err);
+					    	} else {
+					    		console.log("Updated contact attributes: ", JSON.stringify(res));
+					    	}
+				        });
+					}catch(e){
+						console.log('Error updating contact attributes : ', e);
+					}
+					console.log('Writing into S3');
+					writeTranscriptToS3(transcript);
+				}
+				
+				function writeTranscriptToS3(transcript){
+					try{
+					    var bucketName = getBucketName();
+					    var cId = contactID + ".txt";
+					    var S3=  new AWS.S3({params: {Bucket: bucketName + "/transcripts"}});
+					    var params = {
+					      Key: cId,
+					      ContentType:'text/plain',
+					      Body: transcript,
+					    };
+					    S3.upload(params, function (err, res) {               
+					        if(err)
+					            console.log("Error in uploading file on s3 due to ", err);
+					        else{    
+					            console.log("File successfully uploaded.--> ", contactId );
+					        }
+					    });
+					}catch(e){
+						console.log(e);
+					}
+					
+				}
+				
+
+                function titleCase(str) {
+	                return str.toLowerCase().replace(/\b(\w)/g, s => s.toUpperCase());
+                    }
+
+            </script>
+        </div>
+    </section>
+
+    <section id="section-main">
+        <header>
+            <h1>AI Powered Speech Analytics for Amazon Connect</h1>
+        </header>
+        <form name="contactDetails" id="contactDetails">
+            <div>
+                <img src="assets/04_ico_emoji_neutral.svg" style="width:65px;" id='imgCurrentSentiment'>
+            </div>
+            <div style="display: none">
+                <table>
+                    <tbody>
+                        <tr>
+                            <td>
+                                <label for="contactID" style="width: 128px;">Contact ID</label>
+                            </td>
+                            <td>
+                                <input name="contactID" type="text" id="contactID" placeholder="Contact ID" style='width: 340px'
+                                    readonly>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div id="sentimentWrapper">
+                <div id="sentimentBarLabel">Overall Customer Sentiment:</div>
+                <div id="sentimentBar"></div>
+            </div>
+
+            <div id="transcript" style="padding-bottom: 5px;">
+                <div>Real-time Customer Transcript: <input type=button id="showEntities" value="Show Entities" class=btn
+                        style="width: 110px"></input> </div>
+                <div class="transcript-text" name="transcript-text" id="transcript-text" style="border: 1px solid; margin:5px;"></div>
+            </div>
+            <div id="transcript1" style="padding-bottom: 5px; display: none;">
+                <div>Real-time Customer Transcript: <input type=button id="showKeyPhrases" value="Show Key Phrases"
+                        class=btn style="width: 140px"></input> </div>
+                <div class="transcript-text" name="transcript-text-entities" id="transcript-text-entities" style="border: 1px solid; margin:5px;"></div>
+            </div>
+            <div id="translation">
+                <div>Real-time Customer Translation:</div>
+                <div class="translated-text" name="translated-text" id="translated-text" style="border: 1px solid; margin:5px;"></div>
+            </div>
+            <div>
+                <div id="hiddenAttributes">
+                    <input type=button id="showAttributes" value="Show Contact Attributes"></input>
+                    <select name="translateLang" id="translateLang">
+
+                        <option value="en">English</option>
+                        <option value="es">Spanish</option>
+                        <option value="ja">Japanese</option>
+                        <option value="zh">Chinese</option>
+                        <option value="ko">Korean</option>
+                        <option value="ar">Arabic</option>
+                    </select>
+                </div>
+                <div id="visibleAttributes" style="display: none">
+                    <input type=button id="hideAttributes" value="Hide Contact Attributes"></input>
+                    <table id="attributes" style="width:100%;border:1px;"></table>
+                </div>
+            </div>
+
+        </form>
+        <script>
+            console.log("loading gauges");
+            var bar = new ProgressBar.Line('#sentimentBar', {
+                strokeWidth: 4,
+                easing: 'easeInOut',
+                duration: 1400,
+                color: '#FFEA82',
+                trailColor: '#eee',
+                trailWidth: 1,
+                svgStyle: {
+                    width: '100%',
+                    height: '100%'
+                },
+                from: {
+                    color: '#FF1414',
+                },
+                to: {
+                    color: '#32B232'
+                },
+                step: (state, bar) => {
+                    bar.path.setAttribute('stroke', state.color);
+                }
+            });
+
+            bar.animate(0); // Number from 0.0 to 1.0
+
+            function refreshSentimentBar(data) {
+                var sentiment = data.SentimentScore.Positive;
+                sentiment += data.SentimentScore.Neutral;
+                bar.animate(sentiment);
+            }
+
+            function resetSentimentBar() {
+                bar.animate(0);
+            }
+        </script>
+
+    </section>
+
+    <section id="section-agent">
+        <script>
+            var text = '{ "agentAssist" : [' +
+                '{ "keyPhrase":"customer for two years" , "action":"Loyalty Program", "description":"Investigate customer loyalty offers" },' +
+                '{ "keyPhrase":"Cancel My Service" , "action":"Offer Discount", "description":"Provide 30% discount for a year" },' +
+                '{ "keyPhrase":"competitors website" , "action":"Competitive Advantage", "description":"Offer 25% discount for one year" },' +
+                '{ "keyPhrase":"your competitors website" , "action":"Competitive Advantage", "description":"Offer 25% discount for one year" },' +
+                '{ "keyPhrase":"match their price" , "action":"Price Match", "description":"Open price match details" },' +
+                '{ "keyPhrase":"match the price" , "action":"Price Match", "description":"Open price match details" },' +
+                '{ "keyPhrase":"New Service" , "action":"Offer Promo", "description":"Give 5% discount" },' +
+                '{ "keyPhrase":"the promotional pricing" , "action":"Promotion Extention", "description":"Renew promotional discount" } ]}';
+            var agentAction = JSON.parse(text);
+            console.log(agentAction);
+
+            function getAgentAction(inputString, keyPhrase) {
+                console.log(inputString);
+                var action = '';
+                agentAction.agentAssist.forEach(function (element) {
+                    var s1 = element.keyPhrase.toUpperCase();
+                    var s2 = inputString.toUpperCase();
+
+                    if (s2.search(s1) > -1) {
+                        var patt = new RegExp(keyPhrase, "i");
+                        var result = s1.match(patt);
+                        if (result != null) {
+                            $("#section-agent").show("slide");
+                            $('#agentActionLabel').prepend('<p class="suggestedActions">' + element.description + '</p>');
+                            action = element.action;
+                        }
+                    }
+
+                });
+                return action;
+            }
+        </script>
+        <header>
+            <h1>Suggested Actions:</h1>
+        </header>
+        <div id="agentActionWrapper">
+            <div id="agentActionLabel"></div>
+        </div>
+    </section>
+
+
+
+
+</body>
+
+</html>

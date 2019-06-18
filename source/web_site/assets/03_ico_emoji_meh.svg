@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Generator: Adobe Illustrator 23.0.2, SVG Export Plug-In . SVG Version: 6.00 Build 0)  -->
+<svg version="1.1" id="Meh" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
+	 viewBox="0 0 30 30" style="enable-background:new 0 0 30 30;" xml:space="preserve">
+<style type="text/css">
+	.st0{fill:url(#SVGID_1_);}
+</style>
+<g>
+	<g>
+		<radialGradient id="SVGID_1_" cx="15" cy="15" r="9" fx="23.9998" fy="14.942" gradientUnits="userSpaceOnUse">
+			<stop  offset="0" style="stop-color:#E59E03"/>
+			<stop  offset="0" style="stop-color:#E9A710"/>
+			<stop  offset="0" style="stop-color:#F5C339"/>
+			<stop  offset="0" style="stop-color:#FCD453"/>
+			<stop  offset="0" style="stop-color:#FFDA5C"/>
+			<stop  offset="1" style="stop-color:#FE9A02"/>
+		</radialGradient>
+		<circle class="st0" cx="15" cy="15" r="9"/>
+	</g>
+	<rect x="11.1" y="17.4" width="7.8" height="1.5"/>
+	<g>
+		<circle cx="12.3" cy="12.6" r="0.8"/>
+		<circle cx="17.7" cy="12.6" r="0.8"/>
+	</g>
+</g>
+</svg>
