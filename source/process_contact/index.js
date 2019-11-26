@@ -21,6 +21,7 @@ const aws = require('aws-sdk');
 const url = require("url");
 const path = require("path");
 var transcript_seg_table_name = process.env.transcript_seg_table_name;
+const transcript_seg_to_customer_table_name = process.env.transcript_seg_to_customer_table_name;
 var contact_table_name = process.env.contact_table_name;
 
 exports.handler = (event, context, callback) => {
@@ -36,52 +37,57 @@ exports.handler = (event, context, callback) => {
     //get file name ie: ContactID
     var parsed = url.parse(recordingURL);
     var file = path.basename(parsed.pathname);
-    var contactId = file.split('.')[0];
+    var contactId = file.split('_')[0];
     console.log(`Received event for this contsct ID: ${contactId}`);
 
-    getTranscript(contactId)
-        .then((data) => {
-            var contactTranscript = data;
+    getTranscript(contactId, transcript_seg_table_name)
+        .then((result1) => {
+            getTranscript(contactId, transcript_seg_to_customer_table_name)
+                .then(result2 => {
+                    var contactTranscriptFromCustomer = result1;
+                    var contactTranscriptToCustomer = result2;
 
-            //set up the database query to be used to update the customer information record in DynamoDB
-            var paramsUpdate = {
-                //DynamoDB Table Name.  Replace with your table name
-                TableName: contact_table_name,
-                Key: {
-                    "contactId": contactId
-                },
+                    //set up the database query to be used to update the customer information record in DynamoDB
+                    var paramsUpdate = {
+                        //DynamoDB Table Name.  Replace with your table name
+                        TableName: contact_table_name,
+                        Key: {
+                            "contactId": contactId
+                        },
 
-                ExpressionAttributeValues: {
-                    ":var1": contactTranscript,
-                    ":var2": recordingURL
-                },
+                        ExpressionAttributeValues: {
+                            ":var1": contactTranscriptFromCustomer,
+                            ":var2": contactTranscriptToCustomer,
+                            ":var3": recordingURL
+                        },
 
-                UpdateExpression: "SET contactTranscript = :var1, recordingURL = :var2"
-            };
+                        UpdateExpression: "SET contactTranscriptFromCustomer = :var1, contactTranscriptToCustomer = :var2, recordingURL = :var3"
+                    };
 
-            //update the customer record in the database with the new call information using the paramsUpdate query we setup above:
-            var docClient = new aws.DynamoDB.DocumentClient();
-            docClient.update(paramsUpdate, function (err, data) {
-                if (err) console.log("Unable to update item. Error: ", JSON.stringify(err, null, 2));
+                    //update the customer record in the database with the new call information using the paramsUpdate query we setup above:
+                    var docClient = new aws.DynamoDB.DocumentClient();
+                    docClient.update(paramsUpdate, function (err, data) {
+                        if (err) console.log("Unable to update item. Error: ", JSON.stringify(err, null, 2));
 
-                else console.log("Updated item succeeded: ", JSON.stringify(data, null, 2));
+                        else console.log("Updated item succeeded: ", JSON.stringify(data, null, 2));
 
-            });
+                    });
 
 
-            callback(null, "Success!");
+                    callback(null, "Success!");
+                })
         });
 
 
 };
 
-function getTranscript(contactId) {
+function getTranscript(contactId, tableName) {
     return new Promise(function (resolve, reject) {
         var docClient = new aws.DynamoDB.DocumentClient();
 
         //set up the database query to be used to lookup customer information from DynamoDB
         var paramsQuery = {
-            TableName: transcript_seg_table_name,
+            TableName: tableName,
             KeyConditionExpression: "ContactId = :varContactId",
 
             ExpressionAttributeValues: {
@@ -89,7 +95,7 @@ function getTranscript(contactId) {
             }
         };
 
-        //use the lookup query (paramsQuery) we set up to lookup the contact transcript segments from DynamoDB 
+        //use the lookup query (paramsQuery) we set up to lookup the contact transcript segments from DynamoDB
         docClient.query(paramsQuery, (err, dbResults) => {
             //check to make sure the query executed correctly, if so continue, if not error out the lambda function
             if (err) {
@@ -110,7 +116,7 @@ function getTranscript(contactId) {
                     transcript = transcript;
                 } else transcript = "Transcript not available for this call";
 
-                console.log("this is the transcript: " + transcript);
+                console.log("table (" + tableName +") has the transcript: " + transcript);
                 resolve(transcript);
             }
 

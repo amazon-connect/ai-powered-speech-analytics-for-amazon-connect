@@ -14,7 +14,6 @@
  **********************************************************************************************************************/
 
 var AWS = require('aws-sdk');
-var validator = require('validator');
 AWS.config.update({ region: process.env.AWS_REGION });
 var DDB = new AWS.DynamoDB({ apiVersion: "2012-10-08" });
 
@@ -26,7 +25,7 @@ exports.handler = function (event, context, callback) {
 	console.log(a[0]);
 	var connId = a[0].split("@")[1];
 	var contactID = a[1].split("@")[1];
-  if(connId.length !== 16 || !validator.isUUID(contactID)) {
+  if(connId.length !== 16) {
     console.log("Input validation error on connId ("+connId+") or contactID ("+contactID+")");
     const response = {
         statusCode: 502,

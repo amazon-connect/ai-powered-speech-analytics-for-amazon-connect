@@ -51,6 +51,19 @@ function createContactFlow(properties, callback) {
 
     return callback(null, "SUCCESS");
   });
+
+  var chatFlowBody = `{"modules":[{"id":"856dd865-e5a0-49c6-aacc-55fe53c38a22","type":"SetLoggingBehavior","branches":[{"condition":"Success","transition":"07273109-a75a-4742-aaae-ce35603c31fc"}],"parameters":[{"name":"LoggingBehavior","value":"Enable"}],"metadata":{"position":{"x":42,"y":183}}},{"id":"07273109-a75a-4742-aaae-ce35603c31fc","type":"PlayPrompt","branches":[{"condition":"Success","transition":"ef749801-72f5-4aa4-b28d-bd28ad8f052d"}],"parameters":[{"name":"Text","value":"This is the sample flow to demonstrate the art of the possible with the AWS ecosystem and Amazon Connect chat.","namespace":null},{"name":"TextToSpeechType","value":"text"}],"metadata":{"position":{"x":43,"y":400},"useDynamic":false}},{"id":"ef749801-72f5-4aa4-b28d-bd28ad8f052d","type":"InvokeExternalResource","branches":[{"condition":"Success","transition":"e7825b58-a9db-4935-9f83-e67a564176e8"},{"condition":"Error","transition":"e7825b58-a9db-4935-9f83-e67a564176e8"}],"parameters":[{"name":"FunctionArn","value":"${lambdaInitArn}","namespace":null},{"name":"TimeLimit","value":"8"}],"metadata":{"position":{"x":285,"y":33},"dynamicMetadata":{},"useDynamic":false},"target":"Lambda"},{"id":"04aacf02-1a6a-4df8-9a3b-5cce1d6e25a4","type":"Disconnect","branches":[],"parameters":[],"metadata":{"position":{"x":832,"y":419}}},{"id":"e7825b58-a9db-4935-9f83-e67a564176e8","type":"SetAttributes","branches":[{"condition":"Success","transition":"3434e4a0-e2c1-4c3a-9f52-81ae81a852e2"},{"condition":"Error","transition":"3434e4a0-e2c1-4c3a-9f52-81ae81a852e2"}],"parameters":[{"name":"Attribute","value":"aid","key":"aid","namespace":"External"},{"name":"Attribute","value":"sak","key":"sak","namespace":"External"},{"name":"Attribute","value":"sst","key":"sst","namespace":"External"}],"metadata":{"position":{"x":299,"y":272}}},{"id":"919982d6-3066-49e5-afe5-619896781245","type":"Transfer","branches":[{"condition":"AtCapacity","transition":"04aacf02-1a6a-4df8-9a3b-5cce1d6e25a4"},{"condition":"Error","transition":"04aacf02-1a6a-4df8-9a3b-5cce1d6e25a4"}],"parameters":[],"metadata":{"position":{"x":587,"y":426},"useDynamic":false,"queue":null},"target":"Queue"},{"id":"3434e4a0-e2c1-4c3a-9f52-81ae81a852e2","type":"SetQueue","branches":[{"condition":"Success","transition":"8236c738-8738-45ac-b90e-7394a717cbbe"},{"condition":"Error","transition":"8236c738-8738-45ac-b90e-7394a717cbbe"}],"parameters":[{"name":"Queue","value":"","namespace":null,"resourceName":"BasicQueue"}],"metadata":{"position":{"x":538,"y":38},"useDynamic":false,"queue":{"id":"","text":"BasicQueue"}}},{"id":"8236c738-8738-45ac-b90e-7394a717cbbe","type":"PlayPrompt","branches":[{"condition":"Success","transition":"919982d6-3066-49e5-afe5-619896781245"}],"parameters":[{"name":"Text","value":"You are now being placed in queue. Make sure you have enabled Chat on the Basic Queue routing profile.","namespace":null},{"name":"TextToSpeechType","value":"text"}],"metadata":{"position":{"x":548,"y":249},"useDynamic":false}}],"version":"1","type":"contactFlow","start":"856dd865-e5a0-49c6-aacc-55fe53c38a22","metadata":{"entryPointPosition":{"x":20,"y":20},"snapToGrid":false,"name":"aiChatFlow","description":null,"type":"contactFlow","status":"published","hash":"6c4b4a597a23b454226d06e098b4dae962c32a4ad2e88ac999cb06c834055916"}}`;
+  S3.putObject({
+    Bucket: bucketName,
+    Key: 'aiChatFlow',
+    Body: chatFlowBody
+  }, function(err, data) {
+
+    if (err)
+      return callback(err);
+
+    return callback(null, "SUCCESS");
+  });
 }
 
 createContactFlow.handler = function(event, context) {

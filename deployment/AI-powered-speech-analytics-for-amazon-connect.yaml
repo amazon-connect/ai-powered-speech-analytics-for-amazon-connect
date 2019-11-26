@@ -18,6 +18,7 @@ Mappings:
             S3Bucket: "%%BUCKET_NAME%%"
             S3Key: "AI-powered-speech-analytics-for-amazon-connect/%%VERSION%%/"
             SolutionID: "SO0054"
+            Version: "%%VERSION%%"
     Send:
         AnonymousUsage:
             Data: "Yes"
@@ -40,18 +41,6 @@ Parameters:
         Description:  >
             The Amazon S3 prefix where raw/wav (audio/L16; mono; 8 kHz) audio recordings may be uploaded in the event you would like
             process an audio file vs making a phone call and streaming from KVS. Mainly for testing, or for realtime transcription of audio files. This will only work with single channel files (mono).
-    transcriptSegmentsTable:
-        Type: String
-        Default:  contactTranscriptSegments
-        Description:  The name of the DynamoDB Table where segments (utterances) for the caller transcript will be saved (Ensure you do not have a table with this name already).
-    contactDetailsTable:
-        Type: String
-        Default:  contactDetails
-        Description:  The name of the DynamoDB Table where contact details will be written (Ensure you do not have a table with this name already).
-    webSocketConnectionsTableParam:
-        Type: String
-        Default: websocket_connections
-        Description: The name of the DynamoDB Table where websocket connection information will be stored per user(Ensure you do not have a table with this name already).
     S3BucketNameForWebSite:
         Type: String
         Default: "new-website-bucket-name"
@@ -97,12 +86,6 @@ Metadata:
           default: Amazon CloudFront Configuration
         Parameters:
           - cloudFrontPriceClass
-      - Label:
-          default: Amazon DynamoDB Configuration
-        Parameters:
-          - transcriptSegmentsTable
-          - contactDetailsTable
-          - webSocketConnectionsTableParam
     ParameterLabels:
       instanceIdParam:
         default: Instance ID
@@ -118,12 +101,6 @@ Metadata:
         default: Audio File Prefix
       rawAudioUploadPrefix:
         default: Test Mono Audio Prefix
-      transcriptSegmentsTable:
-        default: Transcript Table Name
-      contactDetailsTable:
-        default: Contacts Table Name
-      webSocketConnectionsTableParam:
-        default: Websocket Table Name
 
 
 Outputs:
@@ -262,6 +239,21 @@ Resources:
                             - HEAD
                         MaxAge: '3000'
 
+    s3BucketPolicy:
+      Type: AWS::S3::BucketPolicy
+      DependsOn:
+        - createS3Bucket
+      Properties:
+        Bucket: !Ref createS3Bucket
+        PolicyDocument:
+          Statement:
+            - Action:
+                - "s3:GetObject"
+              Effect: "Deny"
+              Principal: "*"
+              Resource:
+                !Sub ${createS3Bucket.Arn}/CCP/*
+
     createWebSiteS3Bucket:
         Type: 'AWS::S3::Bucket'
         DependsOn:
@@ -279,8 +271,12 @@ Resources:
             WebsiteConfiguration:
                 IndexDocument: agentAssist.html
                 ErrorDocument: error.html
+            BucketEncryption:
+              ServerSideEncryptionConfiguration:
+                - ServerSideEncryptionByDefault:
+                    SSEAlgorithm: AES256
 
-    s3BucketPolicy:
+    s3WebsiteBucketPolicy:
         Type: AWS::S3::BucketPolicy
         DependsOn:
             - createWebSiteS3Bucket
@@ -302,7 +298,6 @@ Resources:
     transcriptSegmentsDDBTable:
       Type: AWS::DynamoDB::Table
       Properties:
-        TableName:  !Ref transcriptSegmentsTable
         AttributeDefinitions:
           -
             AttributeName: "ContactId"
@@ -333,10 +328,42 @@ Resources:
         StreamSpecification:
             StreamViewType: NEW_AND_OLD_IMAGES
 
+    transcriptSegmentsToCustomerDDBTable:
+        Type: AWS::DynamoDB::Table
+        Properties:
+          AttributeDefinitions:
+            -
+              AttributeName: "ContactId"
+              AttributeType: "S"
+            -
+              AttributeName: "StartTime"
+              AttributeType: "N"
+          KeySchema:
+            -
+              AttributeName: "ContactId"
+              KeyType: "HASH"
+            -
+              AttributeName: "StartTime"
+              KeyType: "RANGE"
+          # assuming 5 concurrent calls
+          ProvisionedThroughput:
+            ReadCapacityUnits:
+              5
+            WriteCapacityUnits:
+              5
+          PointInTimeRecoverySpecification:
+            PointInTimeRecoveryEnabled: True
+          SSESpecification:
+            SSEEnabled: True
+          TimeToLiveSpecification:
+            AttributeName:  "ExpiresAfter"
+            Enabled:  True
+          StreamSpecification:
+            StreamViewType: NEW_AND_OLD_IMAGES
+
     contactDetailsDDBTable:
       Type: AWS::DynamoDB::Table
       Properties:
-        TableName:  !Ref contactDetailsTable
         AttributeDefinitions:
           -
             AttributeName: "contactId"
@@ -404,6 +431,7 @@ Resources:
                       - "dynamodb:ListStreams"
                     Resource:
                       - !Sub ${transcriptSegmentsDDBTable.Arn}
+                      - !Sub ${transcriptSegmentsToCustomerDDBTable.Arn}
                   -
                     Effect: "Allow"
                     Action:
@@ -501,10 +529,12 @@ Resources:
                       - "dynamodb:Query"
                     Resource:
                       - !Sub ${transcriptSegmentsDDBTable.Arn}
+                      - !Sub ${transcriptSegmentsToCustomerDDBTable.Arn}
                   -
                     Effect: "Allow"
                     Action:
                       - "dynamodb:Update"
+                      - "dynamodb:UpdateItem"
                     Resource:
                       - !Sub ${contactDetailsDDBTable.Arn}
 
@@ -644,6 +674,7 @@ Resources:
                 - "comprehend:ListDocumentClassifiers"
                 - "comprehend:DetectSyntax"
                 - "comprehend:DetectKeyPhrases"
+                - "comprehend:DetectDominantLanguage"
               Resource: "*"
             -
               Effect: "Allow"
@@ -726,7 +757,7 @@ Resources:
         Description:  >
             Process audio from Kinesis Video Stream and use Amazon Transcribe to get text
             for the caller audio. Will be invoked by the kvsConsumerTrigger Lambda, writes results to the
-            transcriptSegmentsTable, and uploads the audio file to S3.
+            transcriptSegmentsDDBTable, and uploads the audio file to S3.
 
         Handler: "com.amazonaws.kvstranscribestreaming.KVSTranscribeStreamingLambda::handleRequest"
         Role: !GetAtt AIPoweredSpeechAnalyticsKvsTranscribeRole.Arn
@@ -742,7 +773,8 @@ Resources:
                 RECORDINGS_BUCKET_NAME: !Ref S3BucketName
                 RECORDINGS_KEY_PREFIX: !Ref audioFilePrefix
                 INPUT_KEY_PREFIX: !Ref rawAudioUploadPrefix
-                TABLE_CALLER_TRANSCRIPT: !Ref transcriptSegmentsTable
+                TABLE_CALLER_TRANSCRIPT: !Ref transcriptSegmentsDDBTable
+                TABLE_CALLER_TRANSCRIPT_TO_CUSTOMER: !Ref transcriptSegmentsToCustomerDDBTable
                 RECORDINGS_PUBLIC_READ_ACL: "FALSE"
                 CONSOLE_LOG_TRANSCRIPT_FLAG: "TRUE"
                 LOGGING_LEVEL: "FINE"
@@ -760,7 +792,7 @@ Resources:
             Amazon Connect Contact Flow.
         Handler: "index.handler"
         Role: !GetAtt AIPoweredSpeechAnalyticsKvsTriggerRole.Arn
-        Runtime: "nodejs8.10"
+        Runtime: "nodejs10.x"
         MemorySize: 128
         Timeout: 30
         Environment:
@@ -777,12 +809,12 @@ Resources:
             AWS Lambda Function that will be triggered when the call starts so that we have the initial contact details which can later add to when we have the transcript, and audio file location.
         Handler: "index.handler"
         Role: !GetAtt AIPoweredSpeechAnalyticsSTSTokenLambdaIAMRole.Arn
-        Runtime: "nodejs8.10"
+        Runtime: "nodejs10.x"
         MemorySize: 128
         Timeout: 30
         Environment:
             Variables:
-                table_name: !Ref contactDetailsTable
+                table_name: !Ref contactDetailsDDBTable
                 assume_role: !GetAtt AIPoweredSpeechAnalyticsConnectUserStsRole.Arn
         Code:
             S3Bucket: !Join ["-", [!FindInMap [FunctionMap, Configuration, S3Bucket], Ref: "AWS::Region"]]
@@ -795,13 +827,14 @@ Resources:
             AWS Lambda Function that will be triggered when the wav call recording file is placed in S3. This function will collect all the transcript segments, and the audio file location and update the contact db.
         Handler: "index.handler"
         Role: !GetAtt AIPoweredSpeechAnalyticsProcessContactRole.Arn
-        Runtime: "nodejs8.10"
+        Runtime: "nodejs10.x"
         MemorySize: 256
         Timeout: 120
         Environment:
             Variables:
-                contact_table_name: !Ref contactDetailsTable
-                transcript_seg_table_name: !Ref transcriptSegmentsTable
+                contact_table_name: !Ref contactDetailsDDBTable
+                transcript_seg_table_name: !Ref transcriptSegmentsDDBTable
+                transcript_seg_to_customer_table_name: !Ref transcriptSegmentsToCustomerDDBTable
         Code:
             S3Bucket: !Join ["-", [!FindInMap [FunctionMap, Configuration, S3Bucket], Ref: "AWS::Region"]]
             S3Key: !Join ["", [!FindInMap [FunctionMap, Configuration, S3Key], 'process_contact.zip']]
@@ -813,7 +846,7 @@ Resources:
             AWS Lambda Function that will create the initial sample contact flow and upload it to the S3 bucket
         Handler: "index.handler"
         Role: !GetAtt AIPoweredSpeechAnalyticsContactFlowCreatorRole.Arn
-        Runtime: "nodejs8.10"
+        Runtime: "nodejs10.x"
         MemorySize: 256
         Timeout: 120
         Code:
@@ -836,7 +869,6 @@ Resources:
     webSocketConnectionsDDBTable:
         Type: 'AWS::DynamoDB::Table'
         Properties:
-            TableName: !Ref webSocketConnectionsTableParam
             AttributeDefinitions:
                 - AttributeName: connectionId
                   AttributeType: S
@@ -963,12 +995,12 @@ Resources:
             Description: AWS Lambda Function that will be triggered when the browser initiates the websocket connection.
             Handler: index.handler
             Role: !GetAtt AIPoweredSpeechAnalyticsApiGwLambdaRole.Arn
-            Runtime: nodejs8.10
+            Runtime: nodejs10.x
             MemorySize: 128
             Timeout: 30
             Environment:
                 Variables:
-                    TABLE_NAME: !Ref webSocketConnectionsTableParam
+                    TABLE_NAME: !Ref webSocketConnectionsDDBTable
             Code:
                 S3Bucket: !Join ["-", [!FindInMap [FunctionMap, Configuration, S3Bucket], Ref: "AWS::Region"]]
                 S3Key: !Join ["", [!FindInMap [FunctionMap, Configuration, S3Key], 'ws_realtime_transcribe_OnConnect.zip']]
@@ -989,12 +1021,12 @@ Resources:
             Description:  AWS Lambda Function that will be triggered when the browser disconnect the websocket connection.
             Handler: index.handler
             Role: !GetAtt AIPoweredSpeechAnalyticsApiGwLambdaRole.Arn
-            Runtime: nodejs8.10
+            Runtime: nodejs10.x
             MemorySize: 128
             Timeout: 30
             Environment:
                 Variables:
-                    TABLE_NAME: !Ref webSocketConnectionsTableParam
+                    TABLE_NAME: !Ref webSocketConnectionsDDBTable
             Code:
                 S3Bucket: !Join ["-", [!FindInMap [FunctionMap, Configuration, S3Bucket], Ref: "AWS::Region"]]
                 S3Key: !Join ["", [!FindInMap [FunctionMap, Configuration, S3Key], 'ws_realtime_transcribe_OnDisconnect.zip']]
@@ -1015,12 +1047,12 @@ Resources:
             Description: AWS Lambda Function that will be triggered when a message arrives from websocket.
             Handler: index.handler
             Role: !GetAtt AIPoweredSpeechAnalyticsApiGwLambdaRole.Arn
-            Runtime: nodejs8.10
+            Runtime: nodejs10.x
             MemorySize: 128
             Timeout: 30
             Environment:
                 Variables:
-                    TABLE_NAME: !Ref webSocketConnectionsTableParam
+                    TABLE_NAME: !Ref webSocketConnectionsDDBTable
             Code:
                 S3Bucket: !Join ["-", [!FindInMap [FunctionMap, Configuration, S3Bucket], Ref: "AWS::Region"]]
                 S3Key: !Join ["", [!FindInMap [FunctionMap, Configuration, S3Key], 'ws_realtime_transcribe_OnMessage.zip']]
@@ -1041,12 +1073,12 @@ Resources:
             Description: AWS Lambda Function that will be triggered when no action is mapped to the websocket.
             Handler: index.handler
             Role: !GetAtt AIPoweredSpeechAnalyticsApiGwLambdaRole.Arn
-            Runtime: nodejs8.10
+            Runtime: nodejs10.x
             MemorySize: 128
             Timeout: 30
             Environment:
                 Variables:
-                    TABLE_NAME: !Ref webSocketConnectionsTableParam
+                    TABLE_NAME: !Ref webSocketConnectionsDDBTable
             Code:
                 S3Bucket: !Join ["-", [!FindInMap [FunctionMap, Configuration, S3Bucket], Ref: "AWS::Region"]]
                 S3Key: !Join ["", [!FindInMap [FunctionMap, Configuration, S3Key], 'ws_realtime_transcribe_Default.zip']]
@@ -1069,12 +1101,12 @@ Resources:
             Description: AWS Lambda Function that will be triggered when transcribe segments are written into the dynamodb.
             Handler: index.handler
             Role: !GetAtt AIPoweredSpeechAnalyticsApiGwLambdaRole.Arn
-            Runtime: nodejs8.10
+            Runtime: nodejs10.x
             MemorySize: 128
             Timeout: 30
             Environment:
                 Variables:
-                    TABLE_NAME: !Ref webSocketConnectionsTableParam
+                    TABLE_NAME: !Ref webSocketConnectionsDDBTable
                     DOMAIN_NAME: !Join
                         - ''
                         - - !Ref AIPoweredSpeechAnalyticsWS
@@ -1160,7 +1192,7 @@ Resources:
             Handler: index.handler
             MemorySize: 256
             Role: !GetAtt AIPoweredSpeechAnalyticsLambdaCRHIAMRole.Arn
-            Runtime: nodejs8.10
+            Runtime: nodejs10.x
             Timeout: 300
 
     SolutionAnonymousMetric:
@@ -1208,6 +1240,7 @@ Resources:
             UUID: !GetAtt SolutionUuid.UUID
             data: !FindInMap [Send, AnonymousUsage, Data]
             solutionId: !FindInMap [FunctionMap, Configuration, SolutionID]
+            version: !FindInMap [FunctionMap, Configuration, Version]
             webSocketHost:
                 !Join
                     - ''

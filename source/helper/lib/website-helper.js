@@ -20,7 +20,7 @@
 let AWS = require('aws-sdk');
 let s3 = new AWS.S3();
 const fs = require('fs');
-const _downloadKey = 'AI-powered-speech-analytics-for-amazon-connect/latest/web-site-manifest.json';
+var _downloadKey = 'AI-powered-speech-analytics-for-amazon-connect/${version}/web-site-manifest.json';
 const _downloadLocation = '/tmp/web-site-manifest.json';
 
 /**
@@ -63,6 +63,7 @@ let websiteHelper = (function() {
         var uuid = resourceProperties.UUID;
 		var transcriptS3KeyBucket = resourceProperties.transcriptS3KeyBucket;
 		var dashboardUsage = resourceProperties.data;
+		var version = resourceProperties.version;
         console.log("Copying UI web site");
         console.log(['source bucket:', sourceS3Bucket].join(' '));
         console.log(['source prefix:', sourceS3prefix].join(' '));
@@ -72,10 +73,12 @@ let websiteHelper = (function() {
         console.log(['region:', region].join(' '));
         console.log(['instanceId :', instanceId ].join(' '));        
         console.log(['solutionId:', solutionId].join(' '));
-        console.log(['UUID :', uuid ].join(' '));        
+        console.log(['version:', version].join(' '));
+        console.log(['UUID :', uuid ].join(' '));
 		console.log(['transcriptS3KeyBucket :', transcriptS3KeyBucket ].join(' '));        
-		console.log(['dashboardUsage :', dashboardUsage ].join(' '));        
+		console.log(['dashboardUsage :', dashboardUsage ].join(' '));
 
+        _downloadKey = _downloadKey.replace("${version}", version);
         downloadWebisteManifest(sourceS3Bucket, _downloadKey, _downloadLocation, function(err, data) {
             if (err) {
                 console.log(err);
@@ -210,9 +213,9 @@ let websiteHelper = (function() {
             } else if (filelist[index].endsWith('.jpg') || filelist[index].endsWith('.jpeg')) {
                 params.ContentType = "image/jpeg";
                 params.MetadataDirective = "REPLACE";
-              } else if (filelist[index].endsWith('.pdf')) {
-                  params.ContentType = "application/pdf";
-                  params.MetadataDirective = "REPLACE";
+            } else if (filelist[index].endsWith('.pdf')) {
+                params.ContentType = "application/pdf";
+                params.MetadataDirective = "REPLACE";
             } else if (filelist[index].endsWith('.gif')) {
                 params.ContentType = "image/gif";
                 params.MetadataDirective = "REPLACE";
@@ -220,23 +223,22 @@ let websiteHelper = (function() {
 
             s3.copyObject(params, function(err, data) {
                 if (err) {
-                    return cb(['error copying ', [sourceS3prefix, filelist[index]].join('/'), '\n', err]
-                        .join(
-                            ''),
-                        null);
+                    console.log(['error copying ', [sourceS3prefix, filelist[index]].join('/'), '\n', err]
+                        .join(''));
+                } else {
+                    console.log([
+                        [sourceS3prefix, filelist[index]].join('/'), 'uploaded successfully'
+                    ].join(' '));
+
+                    let _next = index + 1;
+                    uploadFile(filelist, _next, destS3Bucket, destS3KeyPrefix, sourceS3prefix, function (err, resp) {
+                        if (err) {
+                            return cb(err, null);
+                        }
+
+                        cb(null, resp);
+                    });
                 }
-
-                console.log([
-                    [sourceS3prefix, filelist[index]].join('/'), 'uploaded successfully'
-                ].join(' '));
-                let _next = index + 1;
-                uploadFile(filelist, _next, destS3Bucket, destS3KeyPrefix, sourceS3prefix, function(err, resp) {
-                    if (err) {
-                        return cb(err, null);
-                    }
-
-                    cb(null, resp);
-                });
             });
         } else {
             cb(null, [index, 'files copied'].join(' '));

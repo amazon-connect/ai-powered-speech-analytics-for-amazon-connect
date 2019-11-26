@@ -18,8 +18,9 @@ var docClient = new AWS.DynamoDB.DocumentClient();
 
 exports.handler = (event, context, callback) => {
     console.log("Event From Amazon Connect: " + JSON.stringify(event));
-    
-    let customerPhoneNumber = event.Details.ContactData.CustomerEndpoint.Address;
+
+    let channel = event.Details.ContactData.Channel ? event.Details.ContactData.Channel : "VOICE";
+    let customerPhoneNumber = channel === "VOICE" ? event.Details.ContactData.CustomerEndpoint.Address : "Chat";
     let contactId = event.Details.ContactData.ContactId;
     
     //Sets the timezone environment variable for the Lambda function to east coast. You can change this to your preferred timezone, or remove this line to use UTC
