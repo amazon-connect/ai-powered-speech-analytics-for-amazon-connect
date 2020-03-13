@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.2] - 2020-03-16
+### Changed
+- Introduce a Connect specific tag processor that will halt reading from stream if contact id changes OR end of stream tag encountered
+- Upgrade the chat related dependencies in the agent portal
+
 ## [1.0.1] - 2019-11-26
 ### Added
 - Ability to stream audio that the customer hears

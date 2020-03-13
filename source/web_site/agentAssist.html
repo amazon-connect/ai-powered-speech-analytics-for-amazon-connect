@@ -15,8 +15,8 @@
     <script type="text/javascript" src="js/jquery-ui.js"></script>
     <script type="text/javascript" src="js/jquery.dataTables.min.js"></script>
 
-    <script type="text/javascript" src="js/amazon-connect-chat.js"></script>
     <script type="text/javascript" src="js/connect-streams.js"></script>
+    <script type="text/javascript" src="js/amazon-connect-chat.js"></script>
 	<script type="text/javascript" src="js/aws-credentials.js"></script>
     <script type="text/javascript" src="js/clipboard.min.js"></script>
     <script type="text/javascript" src="js/demo-common.js"></script>
@@ -384,7 +384,7 @@
 
 </style>
 
-    <script src="js/aws-sdk-2.435.0.min.js"></script>
+    <script src="js/aws-sdk-2.597.0.min.js"></script>
     <script src="js/jquery.tipsy.js"></script>
 
     <section id="ccpContainer">
@@ -638,15 +638,15 @@
                             if (messageData.chatDetails.participantId === messageData.data.ParticipantId) {
                                 agentName = messageData.data.DisplayName;
                                 console.log(`Agent ${messageData.data.DisplayName} Says`,
-                                    messageData.data.Data.Content)
+                                    messageData.data.Content)
                             } else {
                                 customerName = messageData.data.DisplayName;
                                 console.log(
                                     `Customer ${messageData.data.DisplayName} Says`,
-                                    messageData.data.Data.Content);
+                                    messageData.data.Content);
 
                                 console.log("going to process the chat text now");
-                                processChatText(messageData.data.Data.Content, messageData.data.Data.Type);
+                                processChatText(messageData.data.Content, messageData.data.Type);
                             }
                         })
                     })
@@ -933,7 +933,7 @@
                         }
                         args = {
                             message: err ? text : data.TranslatedText,
-                            type: "text/plain"
+                            contentType: "text/plain"
                         };
                         agentChatSession.sendMessage(args);
                         $('#tableDescription').hide();
