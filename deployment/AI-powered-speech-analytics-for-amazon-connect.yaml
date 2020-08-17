@@ -779,6 +779,7 @@ Resources:
                 CONSOLE_LOG_TRANSCRIPT_FLAG: "TRUE"
                 LOGGING_LEVEL: "FINE"
                 SAVE_PARTIAL_TRANSCRIPTS: "TRUE"
+                START_SELECTOR_TYPE: "FRAGMENT_NUMBER"
 
         Code:
             S3Bucket: !Join ["-", [!FindInMap [FunctionMap, Configuration, S3Bucket], Ref: "AWS::Region"]]
