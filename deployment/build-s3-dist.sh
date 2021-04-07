@@ -67,7 +67,33 @@ replace="s/%%VERSION%%/$3/g"
 echo "sed -i '' -e $replace $template_dist_dir/*.template"
 sed -i '' -e $replace $template_dist_dir/*.template
 
-## TODO:
+# Archive and copy kvs_transcribe_streaming_lambda directory to $source_dir
+echo "Archiving kvs_transcribe_streaming_lambda directory"
+cd $source_dir/../source
+zip -r kvs_transcribe_streaming_fargate.zip kvs_transcribe_streaming_lambda
+cp kvs_transcribe_streaming_fargate.zip $build_dist_dir/kvs_transcribe_streaming_fargate.zip
+rm -rf kvs_transcribe_streaming_fargate.zip
+cd $source_dir
+
+# Archive and copy transcribing_fargate_trigger lambda function to $source_dir
+echo "Archiving transcribing_fargate_trigger lambda function"
+cd $source_dir/../source/transcribing_fargate_trigger
+zip lambda_transcribing_fargate_trigger.zip lambda_transcribing_fargate_trigger.py
+cp lambda_transcribing_fargate_trigger.zip $build_dist_dir/lambda_transcribing_fargate_trigger.zip
+rm -rf lambda_transcribing_fargate_trigger.zip
+cd $source_dir
+
+# Archive and copy start_codebuild lambda function to $source_dir
+echo "Archiving start_codebuild lambda function"
+cd $source_dir/../source/start_codebuild
+pip install --target ./package cfnresponse
+zip -r lambda_start_codebuild.zip ./package/
+zip -g lambda_start_codebuild.zip lambda_start_codebuild.py
+zip lambda_start_codebuild.zip lambda_start_codebuild.py
+cp lambda_start_codebuild.zip $build_dist_dir/lambda_start_codebuild.zip
+rm -rf lambda_start_codebuild.zip
+cd $source_dir
+
 # Build node.js CFN Lambda custom resource helper function
 echo "Building CFN custom resource helper Lambda function"
 cd $source_dir/../source/helper
@@ -226,11 +252,6 @@ rm -rf dist
 rm -rf node_modules
 # Done, so go back to deployment_dir
 cd $source_dir
-
-# Build kvs_transcribe_streaming_lambda function to $source_dir
-cd $source_dir/../source/kvs_transcribe_streaming_lambda
-gradle build
-cp ./build/distributions/kvs_transcribe_streaming_lambda.zip $build_dist_dir/
 
 # Copy website files to $build_dist_dir
 echo "Copying web site content to $source_dir"

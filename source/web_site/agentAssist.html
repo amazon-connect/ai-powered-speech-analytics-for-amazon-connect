@@ -384,7 +384,7 @@
 
 </style>
 
-    <script src="js/aws-sdk-2.597.0.min.js"></script>
+    <script src="https://sdk.amazonaws.com/js/aws-sdk-2.824.0.min.js"></script>
     <script src="js/jquery.tipsy.js"></script>
 
     <section id="ccpContainer">
@@ -933,7 +933,7 @@
                         }
                         args = {
                             message: err ? text : data.TranslatedText,
-                            contentType: "text/plain"
+                            type: "text/plain"
                         };
                         agentChatSession.sendMessage(args);
                         $('#tableDescription').hide();

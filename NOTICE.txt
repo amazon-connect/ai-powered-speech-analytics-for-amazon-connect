@@ -1,5 +1,6 @@
 AI Powered Speech Analytics for Amazon Connect
-Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+SPDX-License-Identifier: MIT-0
 
 **********************
 THIRD PARTY COMPONENTS
@@ -12,6 +13,8 @@ aws-java-sdk-kinesisvideo under the Apache License Version 2.0
 aws-java-sdk-dynamodb under the Apache License Version 2.0
 aws-lambda-java-core under the Apache License Version 2.0
 aws-lambda-java-events under the Apache License Version 2.0
+aws-java-sdk-cloudwatch under the Apache License Version 2.0
+aws-java-sdk-sqs under the Apache License Version 2.0
 amazon-kinesis-video-streams-parser-library under the Apache License Version 2.0
 jquery.dataTables.min.js under the MIT license
 jquery under the JS Foundation
@@ -24,3 +27,8 @@ SLF4J under the JS Foundation
 slf4j-api under the MIT License
 slf4j-log4j12 under the MIT License
 netty-nio-client under the Apache License Version 2.0
+commons-lang3 under the Apache License Version 2.0
+rxjava under the Apache License Version 2.0
+reactive-streams under the Public Domain (CC0)
+json under the JSON License
+jackson-databind under the Apache License Version 2.0

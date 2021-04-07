@@ -1,37 +1,60 @@
-apply plugin: 'java'
+task common {
+    apply plugin: 'java'
 
-repositories {
-    mavenCentral()
+    repositories {
+        mavenCentral()
+    }
+
+    dependencies {
+        compile fileTree(dir: 'jars', include: '*.jar')
+        compile group: 'io.reactivex.rxjava2', name: 'rxjava', version: '2.2.2'
+        compile group: 'org.reactivestreams', name: 'reactive-streams', version: '1.0.3'
+        compile group: 'org.json', name: 'json', version: '20190722'
+        compile group: 'com.fasterxml.jackson.core', name: 'jackson-databind', version: '2.10.0.pr3'
+        compile group: 'com.amazonaws', name: 'amazon-kinesis-video-streams-parser-library', version: '1.0.15'
+
+        compile(
+                'software.amazon.awssdk:transcribestreaming:2.16.29',
+                'com.amazonaws:aws-java-sdk-dynamodb:1.11.986',
+                'com.amazonaws:aws-java-sdk-kinesisvideo:1.11.986',
+                'com.amazonaws:aws-lambda-java-core:1.2.1',
+                'com.amazonaws:aws-lambda-java-events:3.8.0',
+                'com.amazonaws:aws-java-sdk-cloudwatch:1.11.986',
+                'com.amazonaws:aws-java-sdk-sqs:1.11.986',
+                'org.slf4j:slf4j-api:1.7.24',
+                'org.slf4j:slf4j-log4j12:1.7.24',
+
+                // need this for our async clients
+                'software.amazon.awssdk:netty-nio-client:2.16.29',
+
+                // need this for logging
+                'org.apache.commons:commons-lang3:3.6',
+        )
+    }
 }
 
-dependencies {
-    compile fileTree(dir: 'jars', include: '*.jar')
-    compile group: 'io.reactivex.rxjava2', name: 'rxjava', version: '2.2.2'
-    compile(
-            'software.amazon.awssdk:transcribestreaming:2.5.41',
-
-            'com.amazonaws:aws-java-sdk-dynamodb:1.11.475',
-            'com.amazonaws:aws-java-sdk-kinesisvideo:1.11.475',
-            'com.amazonaws:aws-lambda-java-core:1.2.0',
-            'com.amazonaws:aws-lambda-java-events:1.2.0',
-            'com.amazonaws:aws-java-sdk-cloudwatch:1.11.480',
-            'org.slf4j:slf4j-api:1.7.24',
-            'org.slf4j:slf4j-log4j12:1.7.24',
-
-            // need this for our async clients
-            'software.amazon.awssdk:netty-nio-client:2.2.0',
-
-            // need this for logging
-            'org.apache.commons:commons-lang3:3.6'
-    )
-}
-
-task buildZip(type: Zip) {
+//Lambda Project
+task buildZip(type: Zip, dependsOn: common) {
     from compileJava
     from processResources
 
     into('lib') {
         from configurations.compileClasspath
+    }
+}
+
+//Fargate Project
+task buildFargate(type: Jar, dependsOn: common) {
+    from compileJava
+    from processResources
+    manifest {
+        attributes 'Implementation-Title': 'Fargate Task Launchpoint',
+                'Main-Class': 'com.amazonaws.kvstranscribestreaming.SQSProcessor'
+    }
+    from {
+        (configurations.runtime).collect {
+            it.isDirectory() ? it : zipTree(it)
+        }
     }
 }
 

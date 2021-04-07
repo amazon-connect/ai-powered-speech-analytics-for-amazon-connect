@@ -1,0 +1,9 @@
+build
+*.iml
+.gradle
+.settings
+bin
+.classpath
+.project
+.DS_Store
+source/start_codebuild/package/
