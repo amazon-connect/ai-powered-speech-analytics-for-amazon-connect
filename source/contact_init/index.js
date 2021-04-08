@@ -31,6 +31,7 @@ exports.handler = (event, context, callback) => {
     var tableName = process.env.table_name;
     var currentTimeStamp = new Date().toString();
     var currentDate = new Date().toLocaleDateString();
+    var sessionDuration = process.env.session_duration;
 
     //set up the database query to be used to update the customer information record in DynamoDB
     var paramsUpdate = {
@@ -58,7 +59,7 @@ exports.handler = (event, context, callback) => {
     });
 
     //callback(null, buildResponse(true));
-    getTempCredentials(callback, contactId);
+    getTempCredentials(callback, contactId, sessionDuration);
 };
 
 function buildResponse(isSuccess, data) {
@@ -80,9 +81,9 @@ function buildResponse(isSuccess, data) {
     }
 }
 
-function getTempCredentials(callback, contactId){
+function getTempCredentials(callback, contactId, sessionDuration){
       var params = {
-        DurationSeconds: 900, 
+        DurationSeconds: sessionDuration, 
         ExternalId: "AI_Powered_SA_for_AC", 
         RoleArn: process.env.assume_role, 
         RoleSessionName: contactId

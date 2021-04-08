@@ -71,6 +71,13 @@ Parameters:
     Default: Lambda
     AllowedValues: [Lambda, Fargate]
     Description: Specify whether to use AWS Fargate or AWS Lambda for transcribing call audio to text. The solution, by default, uses an AWS Lambda function to transcribe call audio consumed from Kinesis Video Streams. Please note that Lambda has a maximum run time of 15 minutes per invocation whereas Fargate has no such limits and can run as long as the call is connected.
+  sessionDuration:
+    Type: Number
+    Default: 3600
+    MinValue: 900
+    MaxValue: 3600
+    ConstraintDescription: "Must specify a value from 900 to 3600."
+    Description: You can give a value from 900 seconds (15 minutes) to 3600 seconds (1 hour). This is the maximum call duration limit until which the customer interaction in Amazon Connect need to be processed by this solution. 
 Conditions:
   ShouldCreateFargateResources:
     !Equals [Fargate, !Ref computeType]
@@ -100,6 +107,10 @@ Metadata:
           default: Amazon Compute Configuration
         Parameters:
           - computeType
+      - Label:
+          default: IAM Role Configuration
+        Parameters:
+          - sessionDuration
     ParameterLabels:
       instanceIdParam:
         default: Instance ID
@@ -115,6 +126,8 @@ Metadata:
         default: Audio File Prefix
       rawAudioUploadPrefix:
         default: Test Mono Audio Prefix
+      sessionDuration:
+        default: The maximum duration of the role session (in seconds)
       computeType:
         default: Compute Type
 
@@ -712,6 +725,7 @@ Resources:
     AIPoweredSpeechAnalyticsConnectUserStsRole:
         Type: "AWS::IAM::Role"
         Properties:
+          MaxSessionDuration: 3600
           AssumeRolePolicyDocument:
             Version: "2012-10-17"
             Statement:
@@ -908,6 +922,8 @@ Resources:
             Variables:
                 table_name: !Ref contactDetailsDDBTable
                 assume_role: !GetAtt AIPoweredSpeechAnalyticsConnectUserStsRole.Arn
+                session_duration: 
+                  !If [ShouldCreateFargateResources, !Ref sessionDuration, 900]
         Code:
             S3Bucket: !Join ["-", [!FindInMap [FunctionMap, Configuration, S3Bucket], Ref: "AWS::Region"]]
             S3Key: !Join ["/", [!FindInMap [FunctionMap, Configuration, S3Key], 'contact_init.zip']]
