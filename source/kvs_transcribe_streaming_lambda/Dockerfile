@@ -1,6 +1,6 @@
 # Install dependencies and build jar
 
-FROM gradle:jdk11 as build
+FROM gradle:6.8.3-jdk11 as build
 
 RUN pwd 
 RUN ls -altr
