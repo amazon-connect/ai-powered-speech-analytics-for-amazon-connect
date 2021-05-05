@@ -1,30 +1,31 @@
 # AI Powered Speech Analytics for Amazon Connect
 The AI Powered Speech Analytics for Amazon Connect solution provides the combination of speech to text transcription, translation into preferred languages, and insights for agents and supervisors all in real-time. This enables agents to better understand customer needs and drive resolution using the insights the solution provides while they are still interacting with their customer.
 
-## OS/Python Environment Setup
-```bash
-sudo apt-get update
-sudo apt-get install zip wget sed -y
-sudo wget -qO- https://deb.nodesource.com/setup_8.x | bash
-sudo apt-get -y install nodejs
+## Building distributable for customization
+* Configure the bucket name of your target Amazon S3 distribution bucket
+```
+export DIST_OUTPUT_BUCKET=my-bucket-name # bucket where customized code will reside
+export SOLUTION_NAME=my-solution-name
+export VERSION=my-version # version number for the customized code
+```
+_Note:_ You would have to create an S3 bucket with the prefix 'my-bucket-name-<aws_region>'; aws_region is where you are testing the customized solution. Also, the assets in bucket should be publicly accessible.
+
+* Now build the distributable:
+```
+chmod +x ./build-s3-dist.sh \n
+./build-s3-dist.sh $DIST_OUTPUT_BUCKET $SOLUTION_NAME $VERSION \n
 ```
 
-## Building Lambda Package
-```bash
-cd deployment
-./build-s3-dist.sh source-bucket-base-name version
+* Deploy the distributable to an Amazon S3 bucket in your account. _Note:_ you must have the AWS Command Line Interface installed.
 ```
-source-bucket-base-name should be the base name for the S3 bucket location where the template will source the Lambda code from.
-The template will append '-[region_name]' to this value.
-version should be a version prefix for the S3 bucket to indicate different build versions.
-For example: ./build-s3-dist.sh solutions v1.0.0
-The template will then expect the source code to be located in the solutions-[region_name]/ai-powered-speech-analytics-for-amazon-connect/v1.0.0/ bucket
+aws s3 cp ./dist/ s3://my-bucket-name-<aws_region>/$SOLUTION_NAME/$VERSION/ --recursive --acl bucket-owner-full-control --profile aws-cred-profile-name \n
+```
 
-## CF template and Lambda function
-Located in deployment/dist
+* Get the link of the solution template uploaded to your Amazon S3 bucket.
+* Deploy the solution to your account by launching a new AWS CloudFormation stack using the link of the solution template in Amazon S3.
+
 
 ***
-
 
 Copyright 2021 Amazon.com, Inc. or its affiliates. All Rights Reserved.
 SPDX-License-Identifier: MIT-0
