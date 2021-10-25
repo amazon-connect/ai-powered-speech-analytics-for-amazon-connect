@@ -27,7 +27,7 @@ aws s3 cp ./dist/ s3://my-bucket-name-<aws_region>/$SOLUTION_NAME/$VERSION/ --re
 
 This solution collects anonymous operational metrics to help AWS improve the
 quality of features of the solution. For more information, including how to disable
-this capability, please see the [implementation guide](_https://docs.aws.amazon.com/solutions/latest/<solution-trademark-name>/collection-of-operational-metrics.html_).
+this capability, please see the [implementation guide](https://docs.aws.amazon.com/solutions/latest/ai-powered-speech-analytics-for-amazon-connect/collection-of-operational-metrics.html).
 
 ***
 
