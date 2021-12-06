@@ -297,6 +297,11 @@ private KVSStreamTrackObject getKVSStreamTrackObjectAfterTimedOut(String streamN
     StreamingMkvReader streamingMkvReader = StreamingMkvReader.createDefault(new InputStreamParserByteSource(kvsInputStream));
     kvsStreamTrackObject.setInputStream(kvsInputStream);
     kvsStreamTrackObject.setStreamingMkvReader(streamingMkvReader);
+
+    KVSContactTagProcessor tagProcessor = kvsStreamTrackObject.getTagProcessor();
+    FragmentMetadataVisitor fragmentVisitor = FragmentMetadataVisitor.create(Optional.of(tagProcessor));
+    kvsStreamTrackObject.setFragmentVisitor(fragmentVisitor);
+
     return kvsStreamTrackObject;
 }
 
