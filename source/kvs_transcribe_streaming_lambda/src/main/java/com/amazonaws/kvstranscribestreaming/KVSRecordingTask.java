@@ -1,5 +1,7 @@
 package com.amazonaws.kvstranscribestreaming;
 
+import com.amazonaws.kinesisvideo.parser.utilities.FragmentMetadata;
+
 import com.amazonaws.auth.AWSCredentialsProvider;
 import com.amazonaws.auth.DefaultAWSCredentialsProviderChain;
 import com.amazonaws.kinesisvideo.parser.ebml.InputStreamParserByteSource;
@@ -154,13 +156,11 @@ public class KVSRecordingTask {
 
         while (isKVSTimedOut) {
             if (isStreamAudioFromCustomerEnabled) {
-                Optional < FragmentMetadata > fragmentMetadata = kvsStreamTrackObjectFromCustomer.getFragmentVisitor().getCurrentFragmentMetadata();
-                String fragmentNumber = fragmentMetadata.get().getFragmentNumberString();
+                String fragmentNumber = kvsStreamTrackObjectFromCustomer.getLastFragmentNumber();
                 getKVSStreamTrackObjectAfterTimedOut(streamName, fragmentNumber, kvsStreamTrackObjectFromCustomer);
              }
             if (isStreamAudioToCustomerEnabled) {
-                Optional < FragmentMetadata > fragmentMetadata = kvsStreamTrackObjectToCustomer.getFragmentVisitor().getCurrentFragmentMetadata();
-                String fragmentNumber = fragmentMetadata.get().getFragmentNumberString();
+                String fragmentNumber = kvsStreamTrackObjectToCustomer.getLastFragmentNumber();
                 getKVSStreamTrackObjectAfterTimedOut(streamName, fragmentNumber, kvsStreamTrackObjectToCustomer);
            }
             isKVSTimedOut = startStreaming(transcribeEnabled, kvsStreamTrackObjectFromCustomer, kvsStreamTrackObjectToCustomer,
@@ -314,7 +314,7 @@ private CompletableFuture < Void > getStartStreamingTranscriptionFuture(KVSStrea
             kvsStreamTrackObject.getTagProcessor(),
             kvsStreamTrackObject.getFragmentVisitor(),
             kvsStreamTrackObject.getTrackName()),
-        new StreamTranscriptionBehaviorImpl(transcribedSegmentWriter, tableName),
+        new StreamTranscriptionBehaviorImpl(transcribedSegmentWriter, tableName, kvsStreamTrackObject),
         channel
     );
 }

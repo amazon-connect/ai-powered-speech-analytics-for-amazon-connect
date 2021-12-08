@@ -244,7 +244,7 @@ public class KVSTranscribeStreamingLambda implements RequestHandler<Transcriptio
                     // since we're definitely working with telephony audio, we know that's 8 kHz
                     getRequest(8000, languageCode),
                     new FileAudioStreamPublisher(inputStream),
-                    new StreamTranscriptionBehaviorImpl(fromCustomerSegmentWriter, TABLE_CALLER_TRANSCRIPT),
+                    new StreamTranscriptionBehaviorImpl(fromCustomerSegmentWriter, TABLE_CALLER_TRANSCRIPT, null),
                     "None"
             );
 
@@ -324,7 +324,7 @@ public class KVSTranscribeStreamingLambda implements RequestHandler<Transcriptio
                         kvsStreamTrackObject.getTagProcessor(),
                         kvsStreamTrackObject.getFragmentVisitor(),
                         kvsStreamTrackObject.getTrackName()),
-                new StreamTranscriptionBehaviorImpl(transcribedSegmentWriter, tableName),
+                new StreamTranscriptionBehaviorImpl(transcribedSegmentWriter, tableName, kvsStreamTrackObject),
                 channel
         );
     }

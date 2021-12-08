@@ -2,10 +2,12 @@ package com.amazonaws.kvstranscribestreaming;
  
 import com.amazonaws.kinesisvideo.parser.mkv.StreamingMkvReader;
 import com.amazonaws.kinesisvideo.parser.utilities.FragmentMetadataVisitor;
+import com.amazonaws.kinesisvideo.parser.utilities.FragmentMetadata;
  
 import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.nio.file.Path;
+import java.util.Optional;
  
 public class KVSStreamTrackObject {
     private InputStream inputStream;
@@ -15,6 +17,7 @@ public class KVSStreamTrackObject {
     private Path saveAudioFilePath;
     private FileOutputStream outputStream;
     private String trackName;
+    private String lastFragmentNumber;
  
     public KVSStreamTrackObject(InputStream inputStream, StreamingMkvReader streamingMkvReader,
                                 KVSContactTagProcessor tagProcessor, FragmentMetadataVisitor fragmentVisitor,
@@ -62,5 +65,17 @@ public class KVSStreamTrackObject {
  
     public String getTrackName() {
         return trackName;
+    }
+
+    public void saveLastFragmentNumber() {
+        Optional<FragmentMetadata> fragmentMetadata = this.fragmentVisitor.getCurrentFragmentMetadata();
+        if (fragmentMetadata.isPresent()) {
+            String fragmentNumber = fragmentMetadata.get().getFragmentNumberString();
+            this.lastFragmentNumber = fragmentNumber;
+        }
+    }
+
+    public String getLastFragmentNumber() {
+        return this.lastFragmentNumber;
     }
 }
