@@ -2240,7 +2240,7 @@ Resources:
             Name: QueueProcessingContainer
           - Cpu: 32
             Essential: false
-            Image: amazon/aws-xray-daemon
+            Image: public.ecr.aws/xray/aws-xray-daemon
             LogConfiguration:
               LogDriver: awslogs
               Options:
