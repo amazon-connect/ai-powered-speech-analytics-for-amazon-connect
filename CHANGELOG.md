@@ -3,6 +3,18 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [1.1.2] - 2021-12-17
+
+### Changed
+- amazon-kinesis-video-streams-parser-library version to 1.1.0
+- org.slf4j:slf4j-api to 1.7.32
+- org.slf4j:slf4j-log4j12 to 1.7.32
+- CHANGELOG.md
+
+### Removed
+- deployment files
+
 ## [1.1.1] - 2021-05-05
 ### Added
 - The version of the docker build image for building the java binary used for the fargate option is changed from gradle:jdk11 to gradle:6.8.3-jdk11 in the Dockerfile so that Grade 7 is not used which was recently released (Apr 9, 2021) and has incompatibility issue.
