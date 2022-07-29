@@ -2204,6 +2204,8 @@ Resources:
                 Value: "FALSE"
               - Name: START_SELECTOR_TYPE
                 Value: "NOW"
+              - Name: START_SELECTOR_TYPE_AFTER_TIMED_OUT
+                Value: "FRAGMENT_NUMBER"
               - Name: TRANSCRIBE_REGION
                 Value: !Ref AWS::Region
               - Name: AWS_REGION
