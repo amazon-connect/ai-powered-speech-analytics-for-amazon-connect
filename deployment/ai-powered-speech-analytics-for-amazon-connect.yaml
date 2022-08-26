@@ -388,12 +388,7 @@ Resources:
           -
             AttributeName: "StartTime"
             KeyType: "RANGE"
-        # assuming 5 concurrent calls
-        ProvisionedThroughput:
-          ReadCapacityUnits:
-              5
-          WriteCapacityUnits:
-              5
+        BillingMode: "PAY_PER_REQUEST"
         PointInTimeRecoverySpecification:
             PointInTimeRecoveryEnabled: True
         SSESpecification:
@@ -426,12 +421,7 @@ Resources:
             -
               AttributeName: "StartTime"
               KeyType: "RANGE"
-          # assuming 5 concurrent calls
-          ProvisionedThroughput:
-            ReadCapacityUnits:
-              5
-            WriteCapacityUnits:
-              5
+          BillingMode: "PAY_PER_REQUEST"
           PointInTimeRecoverySpecification:
             PointInTimeRecoveryEnabled: True
           SSESpecification:
@@ -458,12 +448,7 @@ Resources:
             -
               AttributeName: "contactId"
               KeyType: "HASH"
-          # assuming 5 concurrent calls
-          ProvisionedThroughput:
-            ReadCapacityUnits:
-                5
-            WriteCapacityUnits:
-                5
+          BillingMode: "PAY_PER_REQUEST"
           PointInTimeRecoverySpecification:
               PointInTimeRecoveryEnabled: True
           SSESpecification:
@@ -967,9 +952,7 @@ Resources:
             KeySchema:
                 - AttributeName: connectionId
                   KeyType: HASH
-            ProvisionedThroughput:
-                ReadCapacityUnits: 5
-                WriteCapacityUnits: 5
+            BillingMode: "PAY_PER_REQUEST"
             PointInTimeRecoverySpecification:
                 PointInTimeRecoveryEnabled: true
             SSESpecification:
