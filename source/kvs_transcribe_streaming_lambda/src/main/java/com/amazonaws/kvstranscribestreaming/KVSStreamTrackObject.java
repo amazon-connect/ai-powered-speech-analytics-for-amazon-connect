@@ -47,6 +47,10 @@ public class KVSStreamTrackObject {
     public FragmentMetadataVisitor getFragmentVisitor() {
         return fragmentVisitor;
     }
+
+    public void setFragmentVisitor(FragmentMetadataVisitor fragmentVisitor) {
+        this.fragmentVisitor = fragmentVisitor;
+    }
  
     public Path getSaveAudioFilePath() {
         return saveAudioFilePath;
