@@ -1,4 +1,4 @@
-# Archived - AI Powered Speech Analytics for Amazon Connect *Do not use*
+# Archived *Do not use* - AI Powered Speech Analytics for Amazon Connect
 The AI Powered Speech Analytics for Amazon Connect solution provides the combination of speech to text transcription, translation into preferred languages, and insights for agents and supervisors all in real-time. This enables agents to better understand customer needs and drive resolution using the insights the solution provides while they are still interacting with their customer.
 
 ## Building distributable for customization
