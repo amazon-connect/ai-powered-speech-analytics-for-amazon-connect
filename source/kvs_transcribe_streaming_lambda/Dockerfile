@@ -1,6 +1,6 @@
 # Install dependencies and build jar
 
-FROM gradle:6.8.3-jdk11 as build
+FROM public.ecr.aws/docker/library/gradle:6.8.3-jdk11 as build
 
 RUN pwd 
 RUN ls -altr
@@ -11,7 +11,7 @@ COPY kvs_transcribe_streaming_lambda/build.gradle .
 RUN gradle buildFargate --no-daemon
 
 
-FROM amazoncorretto:11
+FROM public.ecr.aws/amazoncorretto/amazoncorretto:11
 
 WORKDIR /app
 
