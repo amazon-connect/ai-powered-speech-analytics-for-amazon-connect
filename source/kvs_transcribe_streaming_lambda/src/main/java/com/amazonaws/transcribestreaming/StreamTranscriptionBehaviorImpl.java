@@ -1,5 +1,6 @@
 package com.amazonaws.transcribestreaming;
 
+import com.amazonaws.kvstranscribestreaming.KVSStreamTrackObject;
 import com.amazonaws.kvstranscribestreaming.TranscribedSegmentWriter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -31,10 +32,12 @@ public class StreamTranscriptionBehaviorImpl implements StreamTranscriptionBehav
     private static final Logger logger = LoggerFactory.getLogger(StreamTranscriptionBehaviorImpl.class);
     private final TranscribedSegmentWriter segmentWriter;
     private final String tableName;
+    private final KVSStreamTrackObject kvsStreamTrackObject;
 
-    public StreamTranscriptionBehaviorImpl(TranscribedSegmentWriter segmentWriter, String tableName) {
+    public StreamTranscriptionBehaviorImpl(TranscribedSegmentWriter segmentWriter, String tableName, KVSStreamTrackObject kvsStreamTrackObject) {
         this.segmentWriter = segmentWriter;
         this.tableName = tableName;
+        this.kvsStreamTrackObject = kvsStreamTrackObject;
     }
 
     @Override
@@ -44,6 +47,11 @@ public class StreamTranscriptionBehaviorImpl implements StreamTranscriptionBehav
 
     @Override
     public void onStream(TranscriptResultStream e) {
+        if (this.kvsStreamTrackObject != null) {
+            // Save the fragment number of KVS to restart from where the transcription has reached.
+            this.kvsStreamTrackObject.saveLastFragmentNumber();
+        }
+
         // EventResultStream has other fields related to the timestamp of the transcripts in it.
         // Please refer to the javadoc of TranscriptResultStream for more details
         segmentWriter.writeToDynamoDB((TranscriptEvent) e, tableName);

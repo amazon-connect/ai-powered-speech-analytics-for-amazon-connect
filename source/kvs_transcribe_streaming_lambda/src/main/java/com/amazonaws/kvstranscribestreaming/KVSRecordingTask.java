@@ -1,5 +1,7 @@
 package com.amazonaws.kvstranscribestreaming;
 
+import com.amazonaws.kinesisvideo.parser.utilities.FragmentMetadata;
+
 import com.amazonaws.auth.AWSCredentialsProvider;
 import com.amazonaws.auth.DefaultAWSCredentialsProviderChain;
 import com.amazonaws.kinesisvideo.parser.ebml.InputStreamParserByteSource;
@@ -78,6 +80,7 @@ public class KVSRecordingTask {
 
     private static final boolean RECORDINGS_PUBLIC_READ_ACL = Boolean.parseBoolean(System.getenv("RECORDINGS_PUBLIC_READ_ACL"));
     private static final String START_SELECTOR_TYPE = System.getenv("START_SELECTOR_TYPE");
+    private static final String START_SELECTOR_TYPE_AFTER_TIMED_OUT = System.getenv("START_SELECTOR_TYPE_AFTER_TIMED_OUT");
 
     private static final String TABLE_CALLER_TRANSCRIPT = System.getenv("TABLE_CALLER_TRANSCRIPT");
     private static final String TABLE_CALLER_TRANSCRIPT_TO_CUSTOMER = System.getenv("TABLE_CALLER_TRANSCRIPT_TO_CUSTOMER");
@@ -154,13 +157,11 @@ public class KVSRecordingTask {
 
         while (isKVSTimedOut) {
             if (isStreamAudioFromCustomerEnabled) {
-                Optional < FragmentMetadata > fragmentMetadata = kvsStreamTrackObjectFromCustomer.getFragmentVisitor().getCurrentFragmentMetadata();
-                String fragmentNumber = fragmentMetadata.get().getFragmentNumberString();
+                String fragmentNumber = kvsStreamTrackObjectFromCustomer.getLastFragmentNumber();
                 getKVSStreamTrackObjectAfterTimedOut(streamName, fragmentNumber, kvsStreamTrackObjectFromCustomer);
              }
             if (isStreamAudioToCustomerEnabled) {
-                Optional < FragmentMetadata > fragmentMetadata = kvsStreamTrackObjectToCustomer.getFragmentVisitor().getCurrentFragmentMetadata();
-                String fragmentNumber = fragmentMetadata.get().getFragmentNumberString();
+                String fragmentNumber = kvsStreamTrackObjectToCustomer.getLastFragmentNumber();
                 getKVSStreamTrackObjectAfterTimedOut(streamName, fragmentNumber, kvsStreamTrackObjectToCustomer);
            }
             isKVSTimedOut = startStreaming(transcribeEnabled, kvsStreamTrackObjectFromCustomer, kvsStreamTrackObjectToCustomer,
@@ -279,7 +280,8 @@ private void closeFileAndUploadRawAudio(KVSStreamTrackObject kvsStreamTrackObjec
  */
 private KVSStreamTrackObject getKVSStreamTrackObject(String streamName, String startFragmentNum, String trackName,
     String contactId) throws FileNotFoundException {
-    InputStream kvsInputStream = KVSUtils.getInputStreamFromKVS(streamName, REGION, startFragmentNum, getAWSCredentials(), START_SELECTOR_TYPE);
+    String startSelectorType = startFragmentNum == null ? "NOW" : START_SELECTOR_TYPE;
+    InputStream kvsInputStream = KVSUtils.getInputStreamFromKVS(streamName, REGION, startFragmentNum, getAWSCredentials(), startSelectorType);
     StreamingMkvReader streamingMkvReader = StreamingMkvReader.createDefault(new InputStreamParserByteSource(kvsInputStream));
 
     KVSContactTagProcessor tagProcessor = new KVSContactTagProcessor(contactId);
@@ -293,7 +295,8 @@ private KVSStreamTrackObject getKVSStreamTrackObject(String streamName, String s
 }
 
 private KVSStreamTrackObject getKVSStreamTrackObjectAfterTimedOut(String streamName, String startFragmentNum, KVSStreamTrackObject kvsStreamTrackObject) throws FileNotFoundException {
-    InputStream kvsInputStream = KVSUtils.getInputStreamFromKVS(streamName, REGION, startFragmentNum, getAWSCredentials(), START_SELECTOR_TYPE);
+    String startSelectorType = startFragmentNum == null ? "NOW" : START_SELECTOR_TYPE_AFTER_TIMED_OUT;
+    InputStream kvsInputStream = KVSUtils.getInputStreamFromKVS(streamName, REGION, startFragmentNum, getAWSCredentials(), startSelectorType);
     StreamingMkvReader streamingMkvReader = StreamingMkvReader.createDefault(new InputStreamParserByteSource(kvsInputStream));
     kvsStreamTrackObject.setInputStream(kvsInputStream);
     kvsStreamTrackObject.setStreamingMkvReader(streamingMkvReader);
@@ -314,7 +317,7 @@ private CompletableFuture < Void > getStartStreamingTranscriptionFuture(KVSStrea
             kvsStreamTrackObject.getTagProcessor(),
             kvsStreamTrackObject.getFragmentVisitor(),
             kvsStreamTrackObject.getTrackName()),
-        new StreamTranscriptionBehaviorImpl(transcribedSegmentWriter, tableName),
+        new StreamTranscriptionBehaviorImpl(transcribedSegmentWriter, tableName, kvsStreamTrackObject),
         channel
     );
 }

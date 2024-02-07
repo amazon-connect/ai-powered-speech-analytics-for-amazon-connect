@@ -181,7 +181,6 @@ public final class KVSUtils {
                                                     String startSelectorType) {
         Validate.notNull(streamName);
         Validate.notNull(region);
-        Validate.notNull(startFragmentNum);
         Validate.notNull(awsCredentialsProvider);
 
         AmazonKinesisVideo amazonKinesisVideo = (AmazonKinesisVideo) AmazonKinesisVideoClientBuilder.standard().build();
@@ -199,6 +198,7 @@ public final class KVSUtils {
         startSelectorType = isNullOrEmpty(startSelectorType) ? "NOW" : startSelectorType;
         switch (startSelectorType) {
             case "FRAGMENT_NUMBER":
+                Validate.notNull(startFragmentNum);
                 startSelector = new StartSelector()
                         .withStartSelectorType(StartSelectorType.FRAGMENT_NUMBER)
                         .withAfterFragmentNumber(startFragmentNum);
